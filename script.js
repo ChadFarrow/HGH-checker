@@ -138,6 +138,9 @@ class HGHFeedChecker {
             value: (() => {
                 const valueData = this.extractValueInfo(item);
                 console.log('Value4Value extraction for:', this.getTextContent(item, 'title'), 'Data:', valueData);
+                if (valueData && valueData.timeSplits && valueData.timeSplits.length > 0) {
+                    console.log('Time splits found:', valueData.timeSplits);
+                }
                 return valueData;
             })(),
             tracks: this.extractTracks(item)
@@ -215,6 +218,8 @@ class HGHFeedChecker {
         if (!value) return null;
 
         const recipients = value.querySelectorAll('valueRecipient');
+        const timeSplits = value.querySelectorAll('valueTimeSplit');
+        
         return {
             type: value.getAttribute('type') || '',
             method: value.getAttribute('method') || '',
@@ -225,6 +230,18 @@ class HGHFeedChecker {
                 address: recipient.getAttribute('address') || '',
                 split: recipient.getAttribute('split') || '',
                 itemGuid: recipient.getAttribute('itemGuid') || ''
+            })),
+            timeSplits: Array.from(timeSplits).map(split => ({
+                startTime: split.getAttribute('startTime') || '',
+                remotePercentage: split.getAttribute('remotePercentage') || '',
+                duration: split.getAttribute('duration') || '',
+                remoteItem: (() => {
+                    const remoteItem = split.querySelector('remoteItem');
+                    return remoteItem ? {
+                        feedGuid: remoteItem.getAttribute('feedGuid') || '',
+                        itemGuid: remoteItem.getAttribute('itemGuid') || ''
+                    } : null;
+                })()
             }))
         };
     }
@@ -373,9 +390,24 @@ class HGHFeedChecker {
                                 ` : ''}
                             </div>
                         ` : ''}
-                        <div class="episode-media-info">
-                        ${chaptersHtml}
-                    </div>
+                                                <div class="episode-media-info">
+                            <div class="media-content">
+                                <div class="media-header">Media Info:</div>
+                                ${(() => {
+                                    if (episode.value && episode.value.timeSplits && episode.value.timeSplits.length > 0) {
+                                        console.log('Generating time splits HTML for episode:', episode.title, 'Time splits:', episode.value.timeSplits.length);
+                                        return `
+                                            <div class="time-splits-summary">
+                                                <span class="summary-label">V4V Splits:</span> ${episode.value.timeSplits.length} time periods
+                                            </div>
+                                        `;
+                                    } else {
+                                        return '';
+                                    }
+                                })()}
+                                <div class="chapters-loading">Loading chapters...</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;

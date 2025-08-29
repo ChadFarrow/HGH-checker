@@ -324,6 +324,61 @@ header p {
     word-break: break-all;
 }
 
+.value-time-splits {
+    margin-top: 15px;
+}
+
+.time-splits-title {
+    font-weight: 700;
+    color: #856404;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    text-align: center;
+    padding: 8px;
+    background: #fff3cd;
+    border-radius: 6px;
+    border: 1px solid #ffeaa7;
+}
+
+.time-split-item {
+    background: #fff3cd;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border: 1px solid #ffeaa7;
+}
+
+.split-time {
+    font-weight: 600;
+    color: #856404;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+
+.split-details {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 8px;
+}
+
+.split-duration, .split-percentage {
+    font-size: 0.8rem;
+    color: #856404;
+}
+
+.remote-item-info {
+    background: #f8f9fa;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.remote-feed, .remote-episode {
+    font-size: 0.8rem;
+    color: #856404;
+    font-family: 'Courier New', monospace;
+}
+
 .chapters-badge {
     background: #e3f2fd;
     color: #1976d2;
@@ -336,6 +391,44 @@ header p {
     background: #f8f9fa;
     border-radius: 8px;
     border: 1px solid #e9ecef;
+}
+
+.media-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.media-header {
+    font-weight: 700;
+    color: #495057;
+    font-size: 1rem;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: #e9ecef;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.time-splits-summary {
+    background: #fff3cd;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ffeaa7;
+    font-size: 0.9rem;
+    color: #856404;
+}
+
+.summary-label {
+    font-weight: 600;
+}
+
+.episode-time-splits {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    margin-bottom: 15px;
+    border: none;
 }
 
 .episode-chapters {
@@ -403,10 +496,10 @@ header p {
 }
 
 .episode-chapters {
-    background: #e3f2fd;
-    padding: 15px;
-    border-radius: 6px;
-    margin-top: 15px;
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    margin-top: 0;
 }
 
 .chapters-title {
@@ -434,12 +527,15 @@ header p {
     display: flex;
     align-items: center;
     gap: 15px;
-    padding: 8px 0;
-    border-bottom: 1px solid #bbdefb;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
 }
 
 .chapter-item:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
 }
 
 .chapter-time {
