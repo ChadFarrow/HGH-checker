@@ -411,20 +411,6 @@ class HGHFeedChecker {
                 </div>
             ` : '';
 
-            const chaptersHtml = episode.chapters ? `
-                <div class="episode-chapters">
-                    <div class="chapters-header">
-                        <span class="chapters-title">Chapters</span>
-                        <button class="toggle-chapters" onclick="window.toggleChapters(this)">
-                            <span class="toggle-text">Show Chapters</span>
-                            <span class="toggle-icon">▼</span>
-                        </button>
-                    </div>
-                    <div class="chapters-content collapsed" style="max-height: 0;">
-                        <div class="chapters-loading">Loading chapters from: ${episode.chapters}</div>
-                    </div>
-                </div>
-            ` : '';
 
             return `
                 <div class="episode-card collapsed" data-episode="${index}">
@@ -486,14 +472,26 @@ class HGHFeedChecker {
                                 <div class="media-header">Media Timeline:</div>
                                 <div class="timeline-container">
                                     ${(() => {
-                                        if (episode.value && episode.value.timeSplits && episode.value.timeSplits.length > 0) {
-                                            console.log('Generating time splits HTML for episode:', episode.title, 'Time splits:', episode.value.timeSplits.length);
-                                            const remoteItems = episode.value.timeSplits.filter(split => split.remoteItem).length;
+                                        const hasV4V = episode.value && episode.value.timeSplits && episode.value.timeSplits.length > 0;
+                                        const hasChapters = episode.chapters;
+                                        const remoteItems = hasV4V ? episode.value.timeSplits.filter(split => split.remoteItem).length : 0;
+                                        
+                                        let summaryText = '';
+                                        if (hasV4V && hasChapters) {
+                                            summaryText = `V4V Splits: ${episode.value.timeSplits.length} time periods • Chapters available`;
+                                        } else if (hasV4V) {
+                                            summaryText = `V4V Splits: ${episode.value.timeSplits.length} time periods`;
+                                        } else if (hasChapters) {
+                                            summaryText = `Chapters available`;
+                                        }
+                                        
+                                        if (hasV4V || hasChapters) {
+                                            console.log('Generating unified timeline for episode:', episode.title, 'V4V:', hasV4V, 'Chapters:', hasChapters);
                                             return `
                                                 <div class="timeline-summary">
-                                                    <span class="summary-label">V4V Splits:</span> ${episode.value.timeSplits.length} time periods
-                                                    ${remoteItems > 0 ? `(${remoteItems} remote items)` : ''}
-                                                                                                    <button class="toggle-remote-details" onclick="window.toggleRemoteDetails(this)">
+                                                    <span class="summary-label">${summaryText}</span>
+                                                    ${remoteItems > 0 ? ` (${remoteItems} remote items)` : ''}
+                                                    <button class="toggle-remote-details" onclick="window.toggleRemoteDetails(this)">
                                                     <span class="toggle-text">${index === 0 ? 'Hide Details' : 'Show Details'}</span>
                                                     <span class="toggle-icon">${index === 0 ? '▲' : '▼'}</span>
                                                 </button>
@@ -559,13 +557,31 @@ class HGHFeedChecker {
                                                         </div>
                                                     </div>
                                                 ` : '').join('')}
+                                                
+                                                <!-- Chapters Section -->
+                                                ${episode.chapters ? `
+                                                    <div class="chapters-section">
+                                                        <div class="chapters-title">📖 Chapters</div>
+                                                        <div class="chapters-loading">Loading chapters from: ${episode.chapters}</div>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                            `;
+                                        } else if (hasChapters) {
+                                            // Show chapters even if no V4V splits
+                                            return `
+                                            <div class="remote-details ${index === 0 ? '' : 'collapsed'}">
+                                                <div class="remote-details-title">Media Timeline:</div>
+                                                <div class="chapters-section">
+                                                    <div class="chapters-title">📖 Chapters</div>
+                                                    <div class="chapters-loading">Loading chapters from: ${episode.chapters}</div>
+                                                </div>
                                             </div>
                                             `;
                                         } else {
                                             return '';
                                         }
                                     })()}
-                                    ${chaptersHtml}
                                 </div>
                             </div>
                         </div>
@@ -645,26 +661,19 @@ class HGHFeedChecker {
             `;
         }).join('');
 
-        // Replace loading indicator with chapters, keeping them collapsed
+        // Replace loading indicator with chapters in the unified timeline
         chaptersContainer.innerHTML = `
             <div class="chapters-list">
                 ${chaptersHtml}
             </div>
         `;
         
-        // Update the header to show chapter count and ensure content stays collapsed
-        const episodeChapters = chaptersContainer.closest('.episode-chapters');
-        if (episodeChapters) {
-            const chaptersHeader = episodeChapters.querySelector('.chapters-title');
-            if (chaptersHeader) {
-                chaptersHeader.textContent = `Chapters (${chaptersData.chapters.length})`;
-            }
-            
-            // Force the content to remain collapsed after loading
-            const chaptersContent = episodeChapters.querySelector('.chapters-content');
-            if (chaptersContent) {
-                chaptersContent.classList.add('collapsed');
-                chaptersContent.style.maxHeight = '0';
+        // Update the chapters title to show count
+        const chaptersSection = chaptersContainer.closest('.chapters-section');
+        if (chaptersSection) {
+            const chaptersTitle = chaptersSection.querySelector('.chapters-title');
+            if (chaptersTitle) {
+                chaptersTitle.textContent = `📖 Chapters (${chaptersData.chapters.length})`;
             }
         }
     }
@@ -1279,12 +1288,8 @@ class HGHFeedChecker {
             <div class="nested-splits">
                 <div class="nested-splits-header">
                     <span class="nested-label">🎵 Nested V4V Splits (${splitsCount} ${splitsType})</span>
-                    <button class="toggle-nested-splits" onclick="window.toggleNestedSplits(this)">
-                        <span class="toggle-text">Show Details</span>
-                        <span class="toggle-icon">▼</span>
-                    </button>
                 </div>
-                <div class="nested-splits-content collapsed" style="max-height: 0;">
+                <div class="nested-splits-content">
                     ${splitsContent}
                 </div>
             </div>
