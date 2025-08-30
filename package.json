@@ -1,0 +1,13 @@
+{
+  "name": "hgh-feed-checker",
+  "version": "1.0.0",
+  "description": "HGH Feed Checker with CORS proxy server",
+  "main": "proxy-server.js",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "dev": "node proxy-server.js"
+  },
+  "keywords": ["rss", "podcast", "cors", "proxy"],
+  "author": "",
+  "license": "MIT"
+}

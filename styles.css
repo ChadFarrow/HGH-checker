@@ -248,6 +248,77 @@ header p {
     transition: all 0.3s ease;
 }
 
+/* Extracted GUIDs Summary Styles */
+.extracted-guids-summary {
+    background: #f8f9fa;
+    border: 2px solid #28a745;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.15);
+}
+
+.extracted-guids-summary h3 {
+    color: #155724;
+    margin-bottom: 20px;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.guids-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.guid-item {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.guid-original {
+    color: #6c757d;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.guid-real {
+    color: #28a745;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.guid-url {
+    color: #007bff;
+    font-size: 0.9rem;
+    word-break: break-all;
+}
+
+.guid-note {
+    background: #e7f3ff;
+    border: 1px solid #b3d9ff;
+    border-radius: 6px;
+    padding: 15px;
+    color: #004085;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.guid-note code {
+    background: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
 .value-badge {
     background: #fff3cd;
     color: #856404;
@@ -410,6 +481,23 @@ header p {
     text-align: center;
 }
 
+.timeline-container {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.timeline-summary {
+    background: #fff3cd;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ffeaa7;
+    font-size: 0.9rem;
+    color: #856404;
+    margin-bottom: 12px;
+}
+
 .time-splits-summary {
     background: #fff3cd;
     padding: 8px 12px;
@@ -421,6 +509,129 @@ header p {
 
 .summary-label {
     font-weight: 600;
+}
+
+.toggle-remote-details {
+    background: none;
+    border: 1px solid #856404;
+    color: #856404;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-left: 10px;
+    transition: all 0.2s ease;
+}
+
+.toggle-remote-details:hover {
+    background: #856404;
+    color: white;
+}
+
+.toggle-icon {
+    margin-left: 4px;
+    transition: transform 0.2s ease;
+}
+
+.remote-details {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+}
+
+.remote-details.collapsed {
+    display: none;
+}
+
+.remote-details-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.remote-item-detail {
+    background: white;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.remote-content {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.remote-artwork {
+    flex-shrink: 0;
+}
+
+.artwork-placeholder {
+    width: 60px;
+    height: 60px;
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.artwork-loading {
+    animation: spin 1s linear infinite;
+}
+
+.artwork-fallback {
+    color: #6c757d;
+}
+
+.remote-artwork-img {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid #e9ecef;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.remote-time {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+}
+
+.remote-info {
+    display: flex;
+    gap: 15px;
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.remote-feed, .remote-episode, .remote-percentage {
+    font-family: 'Courier New', monospace;
+}
+
+.chapters-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #dee2e6;
+}
+
+.chapters-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
 }
 
 .episode-time-splits {
@@ -502,15 +713,158 @@ header p {
     margin-top: 0;
 }
 
+.chapters-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
 .chapters-title {
     font-weight: 600;
-    margin-bottom: 10px;
     color: #1976d2;
+}
+
+.toggle-chapters {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: background-color 0.2s;
+}
+
+.toggle-chapters:hover {
+    background: #e0e0e0;
+}
+
+.chapters-content {
+    transition: max-height 0.3s ease-out;
+    overflow: hidden;
+}
+
+.chapters-content.collapsed {
+    max-height: 0 !important;
 }
 
 .chapters-loading {
     color: #6c757d;
     font-style: italic;
+}
+
+.chapters-list {
+    padding-top: 10px;
+}
+
+/* Nested V4V Splits Styles */
+.nested-splits {
+    margin-top: 8px;
+    border-left: 2px solid #e0e0e0;
+    padding-left: 8px;
+}
+
+.nested-splits-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.nested-label {
+    font-size: 11px;
+    color: #666;
+    font-weight: 500;
+}
+
+.toggle-nested-splits {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    transition: background-color 0.2s;
+}
+
+.toggle-nested-splits:hover {
+    background: #e9ecef;
+}
+
+.nested-splits-content {
+    transition: max-height 0.3s ease-out;
+    overflow: hidden;
+}
+
+.nested-splits-content.collapsed {
+    max-height: 0 !important;
+}
+
+.nested-split-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 11px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.nested-split-item:last-child {
+    border-bottom: none;
+}
+
+.nested-split-time {
+    font-weight: 500;
+    color: #1976d2;
+    min-width: 80px;
+}
+
+.nested-split-percentage {
+    font-weight: 600;
+    color: #2e7d32;
+    min-width: 35px;
+}
+
+.nested-remote-item {
+    display: flex;
+    gap: 4px;
+    font-size: 10px;
+    color: #666;
+}
+
+.nested-remote-feed {
+    font-weight: 500;
+}
+
+.nested-remote-episode {
+    font-style: italic;
+}
+
+/* Recipient-specific styles for V4V splits */
+.recipient-name {
+    font-weight: 600;
+    color: #1976d2;
+    margin-bottom: 2px;
+}
+
+.recipient-split {
+    font-weight: 500;
+    color: #2e7d32;
+    margin-bottom: 2px;
+}
+
+.recipient-address {
+    font-size: 10px;
+    color: #666;
+    font-family: monospace;
 }
 
 .chapters-error {

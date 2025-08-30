@@ -26,16 +26,6 @@ class HGHFeedChecker {
         } else {
             console.error('Clear button not found');
         }
-        
-        const extractGUIDsButton = document.getElementById('extractGUIDs');
-        if (extractGUIDsButton) {
-            extractGUIDsButton.addEventListener('click', () => {
-                console.log('Extract GUIDs button clicked');
-                this.updateRemoteItemsWithRealGUIDs();
-            });
-        } else {
-            console.error('Extract GUIDs button not found');
-        }
     }
 
     async fetchFeed() {
@@ -50,11 +40,31 @@ class HGHFeedChecker {
                 console.log('Direct fetch successful');
             } catch (directError) {
                 console.log('Direct fetch failed, trying CORS proxy:', directError.message);
-                // Use a CORS proxy to avoid CORS issues
-                const proxyUrl = 'https://api.allorigins.win/raw?url=';
-                const fullUrl = proxyUrl + encodeURIComponent(this.feedUrl);
-                console.log('Using proxy URL:', fullUrl);
-                response = await fetch(fullUrl);
+                // Use local proxy server first, then fallback to external proxies
+                const proxyServices = [
+                    `http://localhost:3001?url=${encodeURIComponent(this.feedUrl)}`,
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(this.feedUrl)}`
+                ];
+                
+                let proxyWorked = false;
+                for (const proxyUrl of proxyServices) {
+                    try {
+                        console.log('Trying proxy:', proxyUrl);
+                        response = await fetch(proxyUrl);
+                        if (response.ok) {
+                            console.log('Proxy fetch successful');
+                            proxyWorked = true;
+                            break;
+                        }
+                    } catch (proxyError) {
+                        console.log('Proxy failed:', proxyError.message);
+                        continue;
+                    }
+                }
+                
+                if (!proxyWorked) {
+                    throw new Error('All proxy services failed');
+                }
             }
             
             if (!response.ok) {
@@ -224,11 +234,27 @@ class HGHFeedChecker {
     }
 
     extractValueInfo(item) {
-        const value = item.querySelector('value');
-        if (!value) return null;
+        // Try both namespaced and non-namespaced selectors for remote feeds
+        const value = item.querySelector('podcast\\:value, value');
+        if (!value) {
+            console.log('🔍 No V4V value element found in item');
+            return null;
+        }
 
-        const recipients = value.querySelectorAll('valueRecipient');
-        const timeSplits = value.querySelectorAll('valueTimeSplit');
+        console.log('🔍 Found V4V value element:', value.tagName, 'with attributes:', {
+            type: value.getAttribute('type'),
+            method: value.getAttribute('method'),
+            suggested: value.getAttribute('suggested')
+        });
+
+        const recipients = value.querySelectorAll('podcast\\:valueRecipient, valueRecipient');
+        const timeSplits = value.querySelectorAll('podcast\\:valueTimeSplit, valueTimeSplit');
+        
+        console.log('🔍 Processing main V4V for episode:', {
+            recipients: recipients.length,
+            timeSplits: timeSplits.length,
+            totalRemoteItems: Array.from(timeSplits).filter(split => split.querySelector('remoteItem')).length
+        });
         
         return {
             type: value.getAttribute('type') || '',
@@ -247,10 +273,57 @@ class HGHFeedChecker {
                 duration: split.getAttribute('duration') || '',
                 remoteItem: (() => {
                     const remoteItem = split.querySelector('remoteItem');
-                    return remoteItem ? {
-                        feedGuid: remoteItem.getAttribute('feedGuid') || '',
-                        itemGuid: remoteItem.getAttribute('itemGuid') || ''
-                    } : null;
+                    if (!remoteItem) return null;
+                    
+                    const feedGuid = remoteItem.getAttribute('feedGuid') || '';
+                    const itemGuid = remoteItem.getAttribute('itemGuid') || '';
+                    console.log('🔍 Processing remoteItem:', { feedGuid: feedGuid.substring(0, 8), itemGuid: itemGuid.substring(0, 8) });
+                    
+                    // Check if this remote item has its own V4V splits
+                    const remoteValue = remoteItem.querySelector('podcast\\:value, value');
+                    let remoteV4V = null;
+                    
+                    if (remoteValue) {
+                        console.log('📊 Found podcast:value in remoteItem!', { feedGuid: feedGuid.substring(0, 8), itemGuid: itemGuid.substring(0, 8) });
+                        console.log('📊 Remote value attributes:', {
+                            type: remoteValue.getAttribute('type'),
+                            method: remoteValue.getAttribute('method'),
+                            suggested: remoteValue.getAttribute('suggested')
+                        });
+                        
+                        const remoteTimeSplits = Array.from(remoteValue.querySelectorAll('podcast\\:timeSplit, timeSplit')).map(timeSplit => ({
+                            startTime: timeSplit.getAttribute('startTime') || '',
+                            duration: timeSplit.getAttribute('duration') || '',
+                            remotePercentage: timeSplit.getAttribute('remotePercentage') || '',
+                            remoteItem: (() => {
+                                const nestedRemote = timeSplit.querySelector('remoteItem');
+                                return nestedRemote ? {
+                                    feedGuid: nestedRemote.getAttribute('feedGuid') || '',
+                                    itemGuid: nestedRemote.getAttribute('itemGuid') || ''
+                                } : null;
+                            })()
+                        }));
+                        
+                        console.log('📊 Remote timeSplits found:', remoteTimeSplits.length);
+                        if (remoteTimeSplits.length > 0) {
+                            console.log('📊 Remote timeSplits details:', remoteTimeSplits);
+                            remoteV4V = {
+                                type: remoteValue.getAttribute('type') || 'lightning',
+                                method: remoteValue.getAttribute('method') || 'keysend',
+                                suggested: remoteValue.getAttribute('suggested') || '',
+                                timeSplits: remoteTimeSplits
+                            };
+                            console.log('✅ Successfully created nested V4V data for remoteItem!');
+                        }
+                    } else {
+                        console.log('❌ No podcast:value found in remoteItem', { feedGuid: feedGuid.substring(0, 8), itemGuid: itemGuid.substring(0, 8) });
+                    }
+                    
+                    return {
+                        feedGuid: feedGuid,
+                        itemGuid: itemGuid,
+                        value: remoteV4V
+                    };
                 })()
             }))
         };
@@ -291,9 +364,6 @@ class HGHFeedChecker {
         
         // Display live items
         this.displayLiveItems();
-        
-        // Check for remote items and show extract GUIDs button if found
-        this.checkForRemoteItems();
         
         // Display Podcast Index information
         this.displayPodcastIndexInfo();
@@ -343,8 +413,16 @@ class HGHFeedChecker {
 
             const chaptersHtml = episode.chapters ? `
                 <div class="episode-chapters">
-                    <div class="chapters-title">Chapters:</div>
-                    <div class="chapters-loading">Loading chapters from: ${episode.chapters}</div>
+                    <div class="chapters-header">
+                        <span class="chapters-title">Chapters</span>
+                        <button class="toggle-chapters" onclick="window.toggleChapters(this)">
+                            <span class="toggle-text">Show Chapters</span>
+                            <span class="toggle-icon">▼</span>
+                        </button>
+                    </div>
+                    <div class="chapters-content collapsed" style="max-height: 0;">
+                        <div class="chapters-loading">Loading chapters from: ${episode.chapters}</div>
+                    </div>
                 </div>
             ` : '';
 
@@ -415,12 +493,12 @@ class HGHFeedChecker {
                                                 <div class="timeline-summary">
                                                     <span class="summary-label">V4V Splits:</span> ${episode.value.timeSplits.length} time periods
                                                     ${remoteItems > 0 ? `(${remoteItems} remote items)` : ''}
-                                                                                                    <button class="toggle-remote-details" onclick="this.parentElement.nextElementSibling.classList.toggle('collapsed'); if (!this.parentElement.nextElementSibling.classList.contains('collapsed')) { window.loadRemoteItemArtwork(); }">
-                                                    <span class="toggle-text">Show Details</span>
-                                                    <span class="toggle-icon">▼</span>
+                                                                                                    <button class="toggle-remote-details" onclick="window.toggleRemoteDetails(this)">
+                                                    <span class="toggle-text">${index === 0 ? 'Hide Details' : 'Show Details'}</span>
+                                                    <span class="toggle-icon">${index === 0 ? '▲' : '▼'}</span>
                                                 </button>
                                                 </div>
-                                                                                            <div class="remote-details collapsed">
+                                                                                            <div class="remote-details ${index === 0 ? '' : 'collapsed'}">
                                                 <div class="remote-details-title">Remote Item Details:</div>
                                                 ${episode.value.timeSplits.map((split, index) => split.remoteItem ? `
                                                     <div class="remote-item-detail">
@@ -428,13 +506,55 @@ class HGHFeedChecker {
                                                         <div class="remote-content">
                                                             <div class="remote-artwork">
                                                                 <div class="artwork-placeholder" data-feed-guid="${split.remoteItem.feedGuid}" data-item-guid="${split.remoteItem.itemGuid}">
-                                                                    <span class="artwork-loading">🔄</span>
+                                                                    <span class="artwork-loading">⏳</span>
                                                                 </div>
                                                             </div>
                                                             <div class="remote-info">
                                                                 <span class="remote-feed">Feed: ${split.remoteItem.feedGuid.substring(0, 8)}...</span>
                                                                 <span class="remote-episode">Episode: ${split.remoteItem.itemGuid.substring(0, 8)}...</span>
                                                                 <span class="remote-percentage">${split.remotePercentage}%</span>
+                                                                ${(() => {
+                                                                    if (split.remoteItem.value && split.remoteItem.value.timeSplits) {
+                                                                        console.log('🎯 Rendering nested V4V splits for remoteItem:', {
+                                                                            feedGuid: split.remoteItem.feedGuid.substring(0, 8),
+                                                                            itemGuid: split.remoteItem.itemGuid.substring(0, 8),
+                                                                            splitsCount: split.remoteItem.value.timeSplits.length
+                                                                        });
+                                                                        return `
+                                                                    <div class="nested-splits">
+                                                                        <div class="nested-splits-header">
+                                                                            <span class="nested-label">Remote V4V Splits: ${split.remoteItem.value.timeSplits.length} periods</span>
+                                                                            <button class="toggle-nested-splits" onclick="window.toggleNestedSplits(this)">
+                                                                                <span class="toggle-text">Show Splits</span>
+                                                                                <span class="toggle-icon">▼</span>
+                                                                            </button>
+                                                                        </div>
+                                                                        <div class="nested-splits-content collapsed">
+                                                                            ${split.remoteItem.value.timeSplits.map(nestedSplit => `
+                                                                                <div class="nested-split-item">
+                                                                                    <div class="nested-split-time">${this.formatTime(parseFloat(nestedSplit.startTime))} - ${this.formatTime(parseFloat(nestedSplit.startTime) + parseFloat(nestedSplit.duration))}</div>
+                                                                                    <div class="nested-split-percentage">${nestedSplit.remotePercentage}%</div>
+                                                                                    ${nestedSplit.remoteItem ? `
+                                                                                        <div class="nested-remote-item">
+                                                                                            <span class="nested-remote-feed">→ ${nestedSplit.remoteItem.feedGuid.substring(0, 8)}...</span>
+                                                                                            <span class="nested-remote-episode">${nestedSplit.remoteItem.itemGuid.substring(0, 8)}...</span>
+                                                                                        </div>
+                                                                                    ` : ''}
+                                                                                </div>
+                                                                            `).join('')}
+                                                                        </div>
+                                                                    </div>
+                                                                        `;
+                                                                    } else {
+                                                                        console.log('❌ No nested V4V splits found for remoteItem:', {
+                                                                            feedGuid: split.remoteItem.feedGuid.substring(0, 8),
+                                                                            itemGuid: split.remoteItem.itemGuid.substring(0, 8),
+                                                                            hasValue: !!split.remoteItem.value,
+                                                                            hasTimeSplits: !!(split.remoteItem.value && split.remoteItem.value.timeSplits)
+                                                                        });
+                                                                        return '';
+                                                                    }
+                                                                })()}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -445,7 +565,7 @@ class HGHFeedChecker {
                                             return '';
                                         }
                                     })()}
-                                    <div class="chapters-loading">Loading chapters...</div>
+                                    ${chaptersHtml}
                                 </div>
                             </div>
                         </div>
@@ -455,6 +575,18 @@ class HGHFeedChecker {
         }).join('');
 
         container.innerHTML = episodesHtml;
+        
+        // Auto-load artwork for the first episode's V4V splits if they are expanded
+        setTimeout(() => {
+            const firstEpisode = container.querySelector('.episode-card[data-episode="0"]');
+            if (firstEpisode) {
+                const remoteDetails = firstEpisode.querySelector('.remote-details:not(.collapsed)');
+                if (remoteDetails) {
+                    console.log('Auto-loading artwork for latest episode V4V splits');
+                    this.loadRemoteItemArtworkForEpisode(firstEpisode);
+                }
+            }
+        }, 100);
         
         // Load chapters for episodes that have them
         episodes.forEach((episode, index) => {
@@ -513,41 +645,169 @@ class HGHFeedChecker {
             `;
         }).join('');
 
-        // Add chapters header and insert chapters
-        const chaptersHeader = '<div class="chapters-section"><div class="chapters-title">Chapters:</div></div>';
-        chaptersContainer.insertAdjacentHTML('beforebegin', chaptersHeader);
-        chaptersContainer.innerHTML = chaptersHtml;
+        // Replace loading indicator with chapters, keeping them collapsed
+        chaptersContainer.innerHTML = `
+            <div class="chapters-list">
+                ${chaptersHtml}
+            </div>
+        `;
+        
+        // Update the header to show chapter count and ensure content stays collapsed
+        const episodeChapters = chaptersContainer.closest('.episode-chapters');
+        if (episodeChapters) {
+            const chaptersHeader = episodeChapters.querySelector('.chapters-title');
+            if (chaptersHeader) {
+                chaptersHeader.textContent = `Chapters (${chaptersData.chapters.length})`;
+            }
+            
+            // Force the content to remain collapsed after loading
+            const chaptersContent = episodeChapters.querySelector('.chapters-content');
+            if (chaptersContent) {
+                chaptersContent.classList.add('collapsed');
+                chaptersContent.style.maxHeight = '0';
+            }
+        }
     }
 
-    async loadRemoteItemArtwork() {
-        console.log('Loading remote item artwork...');
-        // Find all artwork placeholders
-        const placeholders = document.querySelectorAll('.artwork-placeholder');
-        console.log('Found artwork placeholders:', placeholders.length);
+    async loadRemoteItemArtworkForEpisode(episodeElement) {
+        console.log('Loading remote item artwork and V4V data for specific episode...');
+        // Find artwork placeholders only within this episode
+        const placeholders = episodeElement.querySelectorAll('.artwork-placeholder:not(.loaded)');
+        console.log('Found artwork placeholders in episode:', placeholders.length);
         
         for (const placeholder of placeholders) {
             const feedGuid = placeholder.dataset.feedGuid;
             const itemGuid = placeholder.dataset.itemGuid;
-            console.log('Loading artwork for:', feedGuid, itemGuid);
+            console.log('Loading artwork and V4V data for:', feedGuid, itemGuid);
+            
+            // Mark as loaded to prevent duplicate loading
+            placeholder.classList.add('loaded');
+            placeholder.innerHTML = '<span class="artwork-loading">⏳</span>';
             
             try {
-                const artworkUrl = await this.getRemoteItemArtwork(feedGuid, itemGuid);
-                console.log('Artwork URL received:', artworkUrl);
-                if (artworkUrl) {
-                    placeholder.innerHTML = `<img src="${artworkUrl}" alt="Remote episode artwork" class="remote-artwork-img" />`;
+                const remoteData = await this.getRemoteItemData(feedGuid, itemGuid);
+                console.log('Remote data received:', remoteData);
+                
+                // Update artwork
+                if (remoteData.artworkUrl) {
+                    placeholder.innerHTML = `<img src="${remoteData.artworkUrl}" alt="Remote episode artwork" class="remote-artwork-img" />`;
                     console.log('Artwork loaded successfully');
                 } else {
                     placeholder.innerHTML = '<span class="artwork-fallback">🎵</span>';
                     console.log('No artwork available, showing fallback');
                 }
+                
+                // Add V4V splits if available (check both recipients and timeSplits)
+                if (remoteData.v4vData && 
+                    ((remoteData.v4vData.recipients && remoteData.v4vData.recipients.length > 0) || 
+                     (remoteData.v4vData.timeSplits && remoteData.v4vData.timeSplits.length > 0))) {
+                    console.log('🎯 Adding fetched V4V splits to UI for remote item', {
+                        recipients: remoteData.v4vData.recipients ? remoteData.v4vData.recipients.length : 0,
+                        timeSplits: remoteData.v4vData.timeSplits ? remoteData.v4vData.timeSplits.length : 0
+                    });
+                    this.addRemoteV4VSplitsToUI(placeholder, remoteData.v4vData, feedGuid, itemGuid);
+                } else if (remoteData.v4vData) {
+                    console.log('🔍 Remote V4V data found but no recipients or timeSplits:', remoteData.v4vData);
+                }
+                
             } catch (error) {
-                console.error('Could not load artwork for remote item:', feedGuid, itemGuid, error);
+                console.error('Could not load data for remote item:', feedGuid, itemGuid, error);
                 placeholder.innerHTML = '<span class="artwork-fallback">🎵</span>';
             }
         }
     }
+    
+    toggleRemoteDetails(button) {
+        const detailsContainer = button.parentElement.nextElementSibling;
+        const isExpanding = detailsContainer.classList.contains('collapsed');
+        
+        // Toggle the collapsed state
+        detailsContainer.classList.toggle('collapsed');
+        
+        // Update button text
+        const toggleText = button.querySelector('.toggle-text');
+        const toggleIcon = button.querySelector('.toggle-icon');
+        if (isExpanding) {
+            toggleText.textContent = 'Hide Details';
+            toggleIcon.textContent = '▲';
+            
+            // Load artwork for this episode only when expanding
+            const episodeCard = button.closest('.episode-card');
+            if (episodeCard) {
+                this.loadRemoteItemArtworkForEpisode(episodeCard);
+            }
+        } else {
+            toggleText.textContent = 'Show Details';
+            toggleIcon.textContent = '▼';
+        }
+    }
+    
+    toggleChapters(button) {
+        const chaptersContent = button.closest('.episode-chapters').querySelector('.chapters-content');
+        const isExpanding = chaptersContent.classList.contains('collapsed');
+        
+        // Toggle the collapsed state
+        chaptersContent.classList.toggle('collapsed');
+        
+        // Update button text and handle max-height
+        const toggleText = button.querySelector('.toggle-text');
+        const toggleIcon = button.querySelector('.toggle-icon');
+        if (isExpanding) {
+            toggleText.textContent = 'Hide Chapters';
+            toggleIcon.textContent = '▲';
+            // Set a reasonable max-height for expanded state
+            chaptersContent.style.maxHeight = '2000px';
+        } else {
+            toggleText.textContent = 'Show Chapters';
+            toggleIcon.textContent = '▼';
+            chaptersContent.style.maxHeight = '0';
+        }
+    }
+    
+    toggleNestedSplits(button) {
+        const nestedSplitsContent = button.closest('.nested-splits').querySelector('.nested-splits-content');
+        const isExpanding = nestedSplitsContent.classList.contains('collapsed');
+        
+        // Toggle the collapsed state
+        nestedSplitsContent.classList.toggle('collapsed');
+        
+        // Update button text
+        const toggleText = button.querySelector('.toggle-text');
+        const toggleIcon = button.querySelector('.toggle-icon');
+        if (isExpanding) {
+            toggleText.textContent = 'Hide Splits';
+            toggleIcon.textContent = '▲';
+            nestedSplitsContent.style.maxHeight = '1000px';
+        } else {
+            toggleText.textContent = 'Show Splits';
+            toggleIcon.textContent = '▼';
+            nestedSplitsContent.style.maxHeight = '0';
+        }
+    }
+
+    async getRemoteItemData(feedGuid, itemGuid) {
+        // This function fetches both artwork and V4V data from remote feeds
+        try {
+            console.log('Fetching remote item data - Feed GUID:', feedGuid, 'Item GUID:', itemGuid);
+            
+            const result = await this.getRemoteItemArtwork(feedGuid, itemGuid);
+            // getRemoteItemArtwork will be modified to return both artwork and parsed feed
+            
+            return result;
+        } catch (error) {
+            console.error('Error fetching remote item data:', error);
+            return { artworkUrl: null, v4vData: null };
+        }
+    }
 
     async getRemoteItemArtwork(feedGuid, itemGuid) {
+        // Artwork priority order:
+        // 1. Episode-specific artwork from Podcast Index API (using itemGuid)
+        // 2. Episode-specific artwork from RSS feed (matching itemGuid)
+        // 3. Channel artwork from RSS feed
+        // 4. Channel artwork from Podcast Index API
+        // 5. Any episode artwork from RSS feed (fallback)
+        
         try {
             console.log('Looking for artwork - Feed GUID:', feedGuid, 'Item GUID:', itemGuid);
             
@@ -570,6 +830,27 @@ class HGHFeedChecker {
                 'X-Auth-Date': timestamp.toString(),
                 'Authorization': authHash
             };
+            
+            // PRIORITY 1: Try to get episode-specific artwork directly from Podcast Index API using itemGuid
+            console.log('First priority: Checking for episode-specific artwork via Podcast Index API...');
+            try {
+                const episodeResponse = await fetch(`https://api.podcastindex.org/api/1.0/episodes/byguid?guid=${itemGuid}`, { headers });
+                
+                if (episodeResponse.ok) {
+                    const episodeData = await episodeResponse.json();
+                    if (episodeData.episodes && episodeData.episodes.length > 0) {
+                        const episode = episodeData.episodes[0];
+                        if (episode.image) {
+                            console.log('Found episode-specific artwork via Podcast Index API (Priority 1):', episode.image);
+                            return episode.image;
+                        } else {
+                            console.log('Episode found but no specific artwork available');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Podcast Index episode search failed:', error.message);
+            }
             
             // Step 1: Look up the feedGuid to get the RSS feed URL
             console.log('Looking up feedGuid to get RSS feed URL:', feedGuid);
@@ -599,6 +880,7 @@ class HGHFeedChecker {
             
             // Try multiple proxy services for better reliability
             const proxyServices = [
+                `http://localhost:3001?url=${encodeURIComponent(rssFeedUrl)}`,
                 `https://api.allorigins.win/raw?url=${encodeURIComponent(rssFeedUrl)}`,
                 `https://cors-anywhere.herokuapp.com/${rssFeedUrl}`,
                 `https://thingproxy.freeboard.io/fetch/${rssFeedUrl}`
@@ -661,29 +943,11 @@ class HGHFeedChecker {
             }
             
             if (!rssText) {
-                console.log('All RSS fetch attempts failed, trying Podcast Index episode search...');
+                console.log('All RSS fetch attempts failed');
                 
-                // Try to get episode-specific artwork from Podcast Index API
-                try {
-                    const episodeResponse = await fetch(`https://api.podcastindex.org/api/1.0/episodes/byguid?guid=${itemGuid}`, { headers });
-                    
-                    if (episodeResponse.ok) {
-                        const episodeData = await episodeResponse.json();
-                        if (episodeData.episodes && episodeData.episodes.length > 0) {
-                            const episode = episodeData.episodes[0];
-                            if (episode.image) {
-                                console.log('Found episode artwork via Podcast Index API:', episode.image);
-                                return episode.image;
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.log('Podcast Index episode search failed:', error.message);
-                }
-                
-                // Use Podcast Index channel artwork as final fallback
+                // Use Podcast Index channel artwork as fallback since we already checked episode artwork
                 if (remoteFeed.image) {
-                    console.log('Using Podcast Index channel artwork as fallback');
+                    console.log('Using Podcast Index channel artwork as fallback (RSS fetch failed)');
                     return remoteFeed.image;
                 }
                 return null;
@@ -711,11 +975,11 @@ class HGHFeedChecker {
                 }
             }
             
-            // Look for artwork - prioritize episode-specific artwork over channel artwork
+            // Look for artwork - PRIORITY 2: Episode-specific artwork from RSS feed
             let artworkUrl = null;
             
-            // First, try to find the specific episode artwork using itemGuid
-            console.log('Looking for specific episode artwork first...');
+            // Try to find the specific episode artwork using itemGuid in the RSS feed
+            console.log('Priority 2: Looking for episode-specific artwork in RSS feed...');
             const items = rssDoc.querySelectorAll('item');
             
             for (const item of items) {
@@ -748,16 +1012,16 @@ class HGHFeedChecker {
                             }
                             
                             artworkUrl = imageUrl;
-                            console.log('Found episode-specific artwork:', artworkUrl);
+                            console.log('Found episode-specific artwork in RSS (Priority 2):', artworkUrl);
                             break;
                         }
                     }
                 }
             }
             
-            // If no episode-specific artwork found, fall back to channel artwork
+            // PRIORITY 3: Channel artwork as fallback
             if (!artworkUrl) {
-                console.log('No episode artwork found, trying channel artwork...');
+                console.log('Priority 3: No episode artwork found, trying channel artwork as fallback...');
                 
                 // Try to find artwork in the channel - check multiple possible locations
                 let channelImage = rssDoc.querySelector('image url, itunes\\:image, image');
@@ -786,20 +1050,20 @@ class HGHFeedChecker {
                         }
                         
                         artworkUrl = imageUrl;
-                        console.log('Found channel artwork as fallback:', artworkUrl);
+                        console.log('Found channel artwork (Priority 3):', artworkUrl);
                     }
                 }
             }
             
-            // If still no artwork, use the Podcast Index channel artwork as final fallback
+            // PRIORITY 4: Podcast Index channel artwork
             if (!artworkUrl && remoteFeed.image) {
-                console.log('Using Podcast Index channel artwork as final fallback');
+                console.log('Priority 4: Using Podcast Index channel artwork');
                 artworkUrl = remoteFeed.image;
             }
             
-            // If still no artwork, try to find any episode artwork as a last resort
+            // PRIORITY 5: Any episode artwork as last resort
             if (!artworkUrl) {
-                console.log('Trying to find any episode artwork as last resort...');
+                console.log('Priority 5: Trying to find any episode artwork as last resort...');
                 const items = rssDoc.querySelectorAll('item');
                 
                 for (const item of items) {
@@ -830,7 +1094,50 @@ class HGHFeedChecker {
             
             console.log('Final artwork URL:', artworkUrl);
             
-            // Validate the artwork URL before returning it
+            // Extract V4V data from the RSS feed for the specific episode
+            let v4vData = null;
+            const rssItems = rssDoc.querySelectorAll('item');
+            console.log(`🔍 Searching for itemGuid "${itemGuid}" in ${rssItems.length} RSS items...`);
+            
+            for (const item of rssItems) {
+                const episodeGuid = item.querySelector('guid');
+                const episodeTitle = item.querySelector('title')?.textContent || 'Unknown';
+                
+                if (episodeGuid) {
+                    const guidValue = episodeGuid.textContent.trim();
+                    console.log(`📋 Checking episode "${episodeTitle}" with GUID: "${guidValue}"`);
+                    
+                    if (guidValue === itemGuid) {
+                        console.log('🎯 Found matching episode in remote feed, extracting V4V data...');
+                        v4vData = this.extractValueInfo(item);
+                        if (v4vData) {
+                            console.log('✅ Successfully extracted V4V data from remote feed:', {
+                                timeSplits: v4vData.timeSplits ? v4vData.timeSplits.length : 0,
+                                recipients: v4vData.recipients ? v4vData.recipients.length : 0,
+                                v4vData: v4vData
+                            });
+                        } else {
+                            console.log('❌ No V4V data found in matching episode');
+                        }
+                        break;
+                    }
+                } else {
+                    console.log(`📋 Episode "${episodeTitle}" has no GUID element`);
+                }
+            }
+            
+            if (!v4vData) {
+                console.log(`❌ No matching episode found for itemGuid: "${itemGuid}"`);
+                console.log('Available GUIDs in remote feed:');
+                rssItems.forEach((item, index) => {
+                    const guid = item.querySelector('guid');
+                    const title = item.querySelector('title')?.textContent || 'Unknown';
+                    console.log(`  ${index + 1}. "${title}": ${guid ? `"${guid.textContent.trim()}"` : 'NO GUID'}`);
+                });
+            }
+            
+            // Validate the artwork URL and prepare return object
+            let validatedArtworkUrl = null;
             if (artworkUrl) {
                 try {
                     // Check if the URL is valid
@@ -842,20 +1149,22 @@ class HGHFeedChecker {
                     imgCheck.onerror = () => console.log('Artwork image may not be accessible');
                     imgCheck.src = artworkUrl;
                     
-                    return artworkUrl;
+                    validatedArtworkUrl = artworkUrl;
                 } catch (error) {
                     console.log('Invalid artwork URL:', artworkUrl, error.message);
                     // Try to fix common URL issues
                     if (artworkUrl.startsWith('//')) {
                         const fixedUrl = 'https:' + artworkUrl;
                         console.log('Fixed protocol-relative URL:', fixedUrl);
-                        return fixedUrl;
+                        validatedArtworkUrl = fixedUrl;
                     }
-                    return null;
                 }
             }
             
-            return null;
+            return {
+                artworkUrl: validatedArtworkUrl,
+                v4vData: v4vData
+            };
             
         } catch (error) {
             console.error('Error fetching remote item artwork:', error);
@@ -865,199 +1174,127 @@ class HGHFeedChecker {
                 feedGuid,
                 itemGuid
             });
-            return null;
+            return { artworkUrl: null, v4vData: null };
         }
-    }
-
-    // New function to extract real GUIDs from remote feeds
-    async extractRealRemoteItemGUIDs() {
-        console.log('Starting to extract real GUIDs from remote feeds...');
-        
-        try {
-            // Get all remote item elements from the current feed
-            const remoteItems = document.querySelectorAll('remoteItem, [data-feed-guid]');
-            console.log('Found remote items:', remoteItems.length);
-            
-            const extractedGUIDs = [];
-            
-            for (const remoteItem of remoteItems) {
-                const feedGuid = remoteItem.getAttribute('feedGuid');
-                const itemGuid = remoteItem.getAttribute('itemGuid');
-                const feedUrl = remoteItem.getAttribute('feedUrl');
-                
-                console.log('Processing remote item - feedGuid:', feedGuid, 'itemGuid:', itemGuid, 'feedUrl:', feedUrl);
-                
-                if (feedUrl) {
-                    try {
-                        console.log('Fetching remote feed:', feedUrl);
-                        const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`);
-                        
-                        if (response.ok) {
-                            const xmlText = await response.text();
-                            const parser = new DOMParser();
-                            const remoteDoc = parser.parseFromString(xmlText, 'text/xml');
-                            
-                            // Extract the real podcast:guid from the remote feed's channel
-                            const realFeedGuid = this.getTextContent(remoteDoc, 'channel > podcast\\:guid') || 
-                                               this.getTextContent(remoteDoc, 'channel > guid');
-                            
-                            // Extract the real episode guid if itemGuid was specified
-                            let realItemGuid = null;
-                            if (itemGuid) {
-                                // Find the episode in the remote feed that matches our itemGuid
-                                const episodes = remoteDoc.querySelectorAll('item');
-                                for (const episode of episodes) {
-                                    const episodeGuid = this.getTextContent(episode, 'guid') || 
-                                                      this.getTextContent(episode, 'podcast\\:guid');
-                                    if (episodeGuid === itemGuid) {
-                                        realItemGuid = episodeGuid;
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            console.log('Extracted real GUIDs - feedGuid:', realFeedGuid, 'itemGuid:', realItemGuid);
-                            
-                            extractedGUIDs.push({
-                                original: { feedGuid, itemGuid, feedUrl },
-                                real: { feedGuid: realFeedGuid, itemGuid: realItemGuid },
-                                remoteDoc
-                            });
-                            
-                        } else {
-                            console.log('Failed to fetch remote feed:', feedUrl);
-                        }
-                    } catch (error) {
-                        console.error('Error fetching remote feed:', error);
-                    }
-                } else {
-                    console.log('No feedUrl available for this remote item');
-                    // Try to construct a feed URL from common patterns if feedGuid looks like a domain
-                    if (feedGuid && feedGuid.includes('.')) {
-                        console.log('feedGuid looks like a domain, trying to construct feed URL');
-                        const possibleFeedUrl = `https://${feedGuid}/feed.xml`;
-                        console.log('Trying constructed feed URL:', possibleFeedUrl);
-                        
-                        try {
-                            const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(possibleFeedUrl)}`);
-                            if (response.ok) {
-                                console.log('Successfully fetched feed using constructed URL');
-                                // Process this feed similar to above
-                                const xmlText = await response.text();
-                                const parser = new DOMParser();
-                                const remoteDoc = parser.parseFromString(xmlText, 'text/xml');
-                                
-                                const realFeedGuid = this.getTextContent(remoteDoc, 'channel > podcast\\:guid') || 
-                                                   this.getTextContent(remoteDoc, 'channel > guid');
-                                
-                                if (realFeedGuid) {
-                                    extractedGUIDs.push({
-                                        original: { feedGuid, itemGuid, feedUrl: possibleFeedUrl },
-                                        real: { feedGuid: realFeedGuid, itemGuid: null },
-                                        remoteDoc
-                                    });
-                                    console.log('Extracted real feedGuid from constructed URL:', realFeedGuid);
-                                }
-                            }
-                        } catch (error) {
-                            console.log('Failed to fetch using constructed URL:', error);
-                        }
-                    }
-                }
-            }
-            
-            console.log('Extracted GUIDs summary:', extractedGUIDs);
-            return extractedGUIDs;
-            
-        } catch (error) {
-            console.error('Error extracting real GUIDs:', error);
-            return [];
-        }
-    }
-
-    // Function to update remote item elements with real GUIDs
-    async updateRemoteItemsWithRealGUIDs() {
-        console.log('Updating remote items with real GUIDs...');
-        
-        try {
-            const extractedGUIDs = await this.extractRealRemoteItemGUIDs();
-            
-            for (const extracted of extractedGUIDs) {
-                if (extracted.real.feedGuid) {
-                    console.log('Updating remote item with real feedGuid:', extracted.real.feedGuid);
-                    
-                    // Find and update the corresponding remote item element
-                    const remoteItems = document.querySelectorAll('remoteItem, [data-feed-guid]');
-                    
-                    for (const remoteItem of remoteItems) {
-                        const feedGuid = remoteItem.getAttribute('feedGuid');
-                        const itemGuid = remoteItem.getAttribute('itemGuid');
-                        
-                        if (feedGuid === extracted.original.feedGuid && 
-                            itemGuid === extracted.original.itemGuid) {
-                            
-                            // Update with real GUIDs
-                            remoteItem.setAttribute('data-real-feed-guid', extracted.real.feedGuid);
-                            if (extracted.real.itemGuid) {
-                                remoteItem.setAttribute('data-real-item-guid', extracted.real.itemGuid);
-                            }
-                            
-                            console.log('Updated remote item with real GUIDs');
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            console.log('Remote items updated with real GUIDs');
-            
-            // Display the extracted GUIDs information to the user
-            this.displayExtractedGUIDsInfo(extractedGUIDs);
-            
-        } catch (error) {
-            console.error('Error updating remote items:', error);
-        }
-    }
-
-    // Function to display extracted GUIDs information
-    displayExtractedGUIDsInfo(extractedGUIDs) {
-        const container = document.getElementById('episodesContainer');
-        if (!container) return;
-
-        // Create a summary section
-        const summaryHtml = `
-            <div class="extracted-guids-summary">
-                <h3>📋 Extracted Real GUIDs Summary</h3>
-                <div class="guids-list">
-                    ${extractedGUIDs.map(extracted => `
-                        <div class="guid-item">
-                            <div class="guid-original">
-                                <strong>Original:</strong> 
-                                feedGuid: ${extracted.original.feedGuid.substring(0, 20)}... | 
-                                itemGuid: ${extracted.original.itemGuid ? extracted.original.itemGuid.substring(0, 20) + '...' : 'None'}
-                            </div>
-                            <div class="guid-real">
-                                <strong>Real:</strong> 
-                                feedGuid: ${extracted.real.feedGuid || 'Not found'} | 
-                                itemGuid: ${extracted.real.itemGuid || 'Not found'}
-                            </div>
-                            <div class="guid-url">
-                                <strong>URL:</strong> ${extracted.original.feedUrl}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                <p class="guid-note">
-                    💡 <strong>Note:</strong> These real GUIDs can be used in your RSS feed's 
-                    <code>podcast:remoteItem</code> elements to get proper artwork from Podcast Index.
-                </p>
-            </div>
-        `;
-
-        // Insert at the top of the episodes container
-        container.insertAdjacentHTML('afterbegin', summaryHtml);
     }
     
+    addRemoteV4VSplitsToUI(placeholder, v4vData, feedGuid, itemGuid) {
+        console.log('🔍 addRemoteV4VSplitsToUI called with:', {
+            feedGuid: feedGuid?.substring(0, 8),
+            itemGuid: itemGuid?.substring(0, 8),
+            hasPlaceholder: !!placeholder,
+            placeholderClass: placeholder?.className,
+            v4vDataKeys: v4vData ? Object.keys(v4vData) : null,
+            recipientsCount: v4vData?.recipients?.length || 0,
+            timeSplitsCount: v4vData?.timeSplits?.length || 0
+        });
+
+        // Find the remote-info div that contains this placeholder
+        const remoteItemDetail = placeholder.closest('.remote-item-detail');
+        const remoteInfo = remoteItemDetail?.querySelector('.remote-info');
+        
+        console.log('🔍 DOM elements found:', {
+            hasRemoteItemDetail: !!remoteItemDetail,
+            hasRemoteInfo: !!remoteInfo,
+            placeholderParentClass: placeholder.parentElement?.className,
+            placeholderGrandparentClass: placeholder.parentElement?.parentElement?.className
+        });
+
+        // Check if we have the required DOM elements and data
+        if (!remoteInfo) {
+            console.log('❌ Cannot add V4V splits to UI - missing remoteInfo DOM element');
+            return;
+        }
+        
+        if (!v4vData) {
+            console.log('❌ Cannot add V4V splits to UI - no V4V data');
+            return;
+        }
+        
+        // Check if we have either recipients OR timeSplits with actual data
+        const hasValidRecipients = v4vData.recipients && v4vData.recipients.length > 0;
+        const hasValidTimeSplits = v4vData.timeSplits && v4vData.timeSplits.length > 0;
+        
+        if (!hasValidRecipients && !hasValidTimeSplits) {
+            console.log('❌ Cannot add V4V splits to UI - missing elements or data', {
+                hasRemoteInfo: !!remoteInfo,
+                hasV4VData: !!v4vData,
+                hasRecipients: !!(v4vData?.recipients && v4vData.recipients.length > 0),
+                hasTimeSplits: !!(v4vData?.timeSplits && v4vData.timeSplits.length > 0),
+                recipientsCount: v4vData?.recipients?.length || 0,
+                timeSplitsCount: v4vData?.timeSplits?.length || 0,
+                v4vDataStructure: v4vData
+            });
+            return;
+        }
+        
+        // Determine what type of V4V data we have
+        const hasRecipients = v4vData.recipients && v4vData.recipients.length > 0;
+        const hasTimeSplits = v4vData.timeSplits && v4vData.timeSplits.length > 0;
+        
+        console.log('🎯 Adding V4V splits UI for remote item:', {
+            feedGuid: feedGuid.substring(0, 8),
+            itemGuid: itemGuid.substring(0, 8),
+            recipientsCount: hasRecipients ? v4vData.recipients.length : 0,
+            timeSplitsCount: hasTimeSplits ? v4vData.timeSplits.length : 0
+        });
+        
+        let splitsContent = '';
+        let splitsCount = 0;
+        let splitsType = '';
+        
+        // Handle recipients (basic splits)
+        if (hasRecipients) {
+            splitsCount = v4vData.recipients.length;
+            splitsType = 'recipients';
+            splitsContent = v4vData.recipients.map(recipient => `
+                <div class="nested-split-item">
+                    <div class="recipient-name">${recipient.name || 'Unknown'}</div>
+                    <div class="recipient-split">${recipient.split}% (${recipient.type || 'node'})</div>
+                    ${recipient.address ? `<div class="recipient-address">${recipient.address.substring(0, 20)}...</div>` : ''}
+                </div>
+            `).join('');
+        }
+        
+        // Handle time splits (time-based splits)
+        if (hasTimeSplits) {
+            splitsCount = v4vData.timeSplits.length;
+            splitsType = 'time periods';
+            splitsContent = v4vData.timeSplits.map(split => `
+                <div class="nested-split-item">
+                    <div class="nested-split-time">${this.formatTime(parseFloat(split.startTime))} - ${this.formatTime(parseFloat(split.startTime) + parseFloat(split.duration))}</div>
+                    <div class="nested-split-percentage">${split.remotePercentage || '100'}%</div>
+                    ${split.remoteItem ? `
+                        <div class="nested-remote-item">
+                            <span class="nested-remote-feed">→ ${split.remoteItem.feedGuid.substring(0, 8)}...</span>
+                            <span class="nested-remote-episode">${split.remoteItem.itemGuid.substring(0, 8)}...</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        // Create the nested splits HTML
+        const nestedSplitsHtml = `
+            <div class="nested-splits">
+                <div class="nested-splits-header">
+                    <span class="nested-label">🎵 Nested V4V Splits (${splitsCount} ${splitsType})</span>
+                    <button class="toggle-nested-splits" onclick="window.toggleNestedSplits(this)">
+                        <span class="toggle-text">Show Details</span>
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                </div>
+                <div class="nested-splits-content collapsed" style="max-height: 0;">
+                    ${splitsContent}
+                </div>
+            </div>
+        `;
+        
+        // Add the nested splits to the remote-info div
+        remoteInfo.insertAdjacentHTML('beforeend', nestedSplitsHtml);
+        console.log('✅ Successfully added V4V splits UI to remote item');
+    }
+
     // Helper function to generate SHA1 hash for Podcast Index API authentication
     async sha1(str) {
         const buffer = new TextEncoder().encode(str);
@@ -1083,20 +1320,6 @@ class HGHFeedChecker {
             return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         } else {
             return `${minutes}:${secs.toString().padStart(2, '0')}`;
-        }
-    }
-
-    checkForRemoteItems() {
-        const extractGUIDsBtn = document.getElementById('extractGUIDs');
-        if (extractGUIDsBtn) {
-            // Check if there are any remote items in the feed
-            const remoteItems = document.querySelectorAll('remoteItem, [data-feed-guid]');
-            if (remoteItems.length > 0) {
-                extractGUIDsBtn.style.display = 'inline-block';
-                console.log('Found remote items, showing extract GUIDs button');
-            } else {
-                extractGUIDsBtn.style.display = 'none';
-            }
         }
     }
 
@@ -1594,6 +1817,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const checker = new HGHFeedChecker();
     console.log('HGHFeedChecker initialized:', checker);
     
-    // Make loadRemoteItemArtwork globally accessible
-    window.loadRemoteItemArtwork = () => checker.loadRemoteItemArtwork();
+    // Make toggle functions globally accessible
+    window.toggleRemoteDetails = (button) => checker.toggleRemoteDetails(button);
+    window.toggleChapters = (button) => checker.toggleChapters(button);
+    window.toggleNestedSplits = (button) => checker.toggleNestedSplits(button);
 });
