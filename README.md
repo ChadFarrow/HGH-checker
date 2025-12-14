@@ -1,183 +1,104 @@
-# 🎵 HGH Feed Checker
+# HGH Feed Checker
 
-A web-based tool to visualize and validate your Homegrown Hits RSS feed, helping you spot errors and inconsistencies in your manually edited feed.
+A desktop web tool for music podcasters to validate their RSS feeds before publishing. Check chapters, V4V (Value4Value) payment info, and Podcasting 2.0 compliance.
+
+## Live Demo
+
+Deployed on Vercel: [hgh-checker.vercel.app](https://hgh-checker.vercel.app) (or your deployment URL)
 
 ## Features
 
-### 📊 **Dashboard Overview**
-- **Total Episodes**: Count of all episodes in the feed
-- **Feed Last Updated**: When the feed was last modified
-- **Live Items**: Number of live streaming events
-- **Total Duration**: Combined duration of all episodes
+### Feed Validation
+- **Paste any RSS feed URL** - Works with any podcast feed
+- **Inline error display** - Errors shown directly in episode cards
+- **Chapter validation** - Checks timestamps are sequential with no overlaps
+- **V4V validation** - Validates Lightning payment splits and addresses
 
-### 🔍 **Episode Analysis**
-- **Episode Cards**: Detailed view of each episode with:
-  - Episode number extraction
-  - Duration and file size
-  - Publication date
-  - GUID (unique identifier)
-  - Track listings with artist and title
-  - Audio file information
+### Episode Cards
+- Collapsible cards showing episode title, date, duration
+- Badges for Chapters, Songs count, and Issues
+- Red border highlights episodes with problems
+- Expandable details with chapters and V4V info
 
-### ✅ **Validation System**
-- **Required Elements**: Checks for missing essential feed elements
-- **Episode Consistency**: Validates episode numbering and GUIDs
-- **File Validation**: Checks audio file URLs and sizes
-- **Live Item Validation**: Ensures live events have required information
-- **Duplicate Detection**: Identifies duplicate GUIDs across episodes
-- **Podcast Index Compliance**: Validates podcast namespace elements
-- **Value4Value Validation**: Checks Lightning Network payment configurations
-- **Enhanced Metadata**: Validates chapters, person tags, and live streaming
+### Expandable Chapters
+- Click any chapter to expand details
+- Shows chapter artwork, links, and V4V payment breakdown
+- Fetches artist info (song title, artist name, album art) from Podcast Index API
+- Displays payment splits for both Song Artist (99%) and Show (1%)
 
-### 🎯 **Error Categories**
-- **❌ Errors**: Critical issues that break feed functionality
-- **⚠️ Warnings**: Issues that may cause problems but don't break the feed
-- **ℹ️ Info**: Suggestions for improving Podcast Index compatibility
-- **✅ Success**: No validation issues found
+### V4V Payment Info
+- Lightning node addresses link to [amboss.space](https://amboss.space) for lookup
+- Shows payment split percentages and actual totals
+- Validates feed/item GUIDs for remote items (songs)
+
+### Validation Checks
+
+| Check | What it validates |
+|-------|-------------------|
+| **Chapters** | File exists, timestamps sequential, no overlaps |
+| **V4V Splits** | Feed GUID, item GUID, valid percentages |
+| **Episode** | GUID present, audio enclosure exists |
+| **Lightning** | Address format, splits total 100% |
 
 ## How to Use
 
-1. **Open the Tool**: Open `index.html` in your web browser
-2. **Fetch Feed**: Click the "Fetch Feed" button to load your RSS feed
-3. **Review Results**: Examine the dashboard, episodes, and validation results
-4. **Clear Data**: Use "Clear Data" to reset and start over
+1. Go to the deployed URL or run locally
+2. Paste an RSS feed URL (defaults to Homegrown Hits feed)
+3. Click **Check Feed**
+4. Review episodes - expand any with the red "Issues" badge
+5. Click chapters to see artwork and V4V payment details
 
-## What It Checks
+## Local Development
 
-### Channel Level
-- Title, description, language, and link
-- iTunes and podcast namespace elements
-- Image and author information
-- Podcast namespace compliance (GUID, medium, complete status)
-- Value4Value configuration for Lightning Network payments
+```bash
+# Start the CORS proxy server
+npm start
 
-### Episode Level
-- Title, GUID, and publication date
-- Audio file enclosure (URL, type, size)
-- Episode numbering consistency
-- Track information extraction
-- Duration and file size validation
-- Podcast namespace elements (chapters, person tags, value4value)
-- Enhanced metadata for Podcast Index discovery
+# Open index.html in browser or use a local server
+python3 -m http.server 3000
+```
 
-### Live Items
-- Title and status information
-- Start and end times
-- Chat room links
-- Streaming URLs
-- Value4Value support for live events
-- Time range validation
+The proxy runs on port 3001 and handles CORS for fetching external feeds.
 
-### Technical Validation
-- XML format correctness
-- Required RSS elements
-- Duplicate GUID detection
-- File size anomalies
-- Podcast namespace compliance
-- Value4Value recipient validation
-- Lightning Network address format checking
-- Split percentage calculations
+## Deployment
 
-## Common Issues to Look For
+Configured for Vercel deployment:
+- Static files served from root
+- Serverless CORS proxy at `/api/proxy`
+- No build step required
 
-### 🔴 **Critical Issues**
-- Missing episode titles or GUIDs
-- Broken audio file links
-- Invalid XML formatting
-- Duplicate episode identifiers
-
-### 🟡 **Warning Signs**
-- Missing publication dates
-- Inconsistent episode numbering
-- Unusually small file sizes
-- Missing channel metadata
-- Incomplete podcast namespace elements
-- Value4Value configuration issues
-- Inconsistent metadata across episodes
-
-### 🟢 **Good Practices**
-- Consistent episode naming
-- Proper GUID formatting
-- Complete track information
-- Regular feed updates
-- Complete podcast namespace implementation
-- Consistent Value4Value support
-- Enhanced metadata for all episodes
-- Live streaming integration
-
-## Technical Details
-
-- **CORS Handling**: Uses a proxy service to fetch external feeds
-- **XML Parsing**: Robust parsing of RSS and podcast namespace elements
-- **Responsive Design**: Works on desktop and mobile devices
-- **No Dependencies**: Pure HTML, CSS, and JavaScript
-
-## Podcast Index Features
-
-### **Namespace Validation**
-- Validates `podcast:guid`, `podcast:medium`, `podcast:complete`, and `podcast:block`
-- Checks for proper podcast namespace implementation
-- Ensures compatibility with Podcast Index aggregation
-
-### **Value4Value Support**
-- Validates Lightning Network payment configurations
-- Checks recipient splits add up to 100%
-- Validates Lightning address formats
-- Ensures proper value4value metadata
-
-### **Enhanced Metadata**
-- Tracks chapters, person tags, and value4value usage
-- Provides consistency recommendations
-- Calculates Podcast Index readiness score
-- Identifies missing enhanced features
-
-### **Live Streaming**
-- Validates live item configurations
-- Checks time ranges and streaming URLs
-- Ensures proper live event metadata
-- Supports live value4value integration
+```bash
+# Deploy to Vercel
+vercel
+```
 
 ## File Structure
 
 ```
-HGH checker/
-├── index.html          # Main application interface
-├── styles.css          # Styling and layout
-├── script.js           # Feed parsing and validation logic
-└── README.md           # This documentation
+HGH-checker/
+├── index.html          # Main UI
+├── script.js           # Feed parsing, validation, display logic
+├── styles.css          # Dark glassmorphism theme
+├── api/
+│   └── proxy.js        # Vercel serverless CORS proxy
+├── proxy-server.js     # Local development CORS proxy
+├── vercel.json         # Vercel deployment config
+├── package.json        # Project metadata
+└── README.md           # This file
 ```
 
-## Browser Compatibility
+## Technical Details
 
-- **Modern Browsers**: Chrome, Firefox, Safari, Edge
-- **Mobile**: Responsive design for mobile devices
-- **JavaScript**: Requires ES6+ support
+- **Desktop-only** - Optimized for wide screens (1400px max-width)
+- **No npm dependencies** - Pure HTML/CSS/JS frontend
+- **Podcast Index API** - Fetches artist info and artwork
+- **CORS proxy** - Serverless function for cross-origin feed fetching
 
-## Troubleshooting
+## Error Severity
 
-### Feed Won't Load
-- Check if the feed URL is accessible
-- Verify the feed is valid RSS/XML
-- Check browser console for error messages
-
-### Validation Issues
-- Review the specific error messages
-- Check your RSS feed structure
-- Verify all required elements are present
-
-### Display Problems
-- Ensure JavaScript is enabled
-- Check for browser console errors
-- Try refreshing the page
-
-## Contributing
-
-Feel free to enhance this tool by:
-- Adding more validation rules
-- Improving the UI/UX
-- Adding export functionality
-- Supporting additional feed formats
+- **Errors** (red) - Critical issues like missing GUIDs
+- **Warnings** (yellow) - Non-critical like missing chapters
 
 ## License
 
-This tool is provided as-is for the Homegrown Hits community. Use it to maintain the quality of your RSS feed!
+MIT

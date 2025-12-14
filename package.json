@@ -1,13 +1,26 @@
 {
   "name": "hgh-feed-checker",
-  "version": "1.0.0",
-  "description": "HGH Feed Checker with CORS proxy server",
+  "version": "1.1.0",
+  "description": "Podcast feed validator for chapters, V4V payments, and Podcasting 2.0 compliance",
   "main": "proxy-server.js",
   "scripts": {
     "start": "node proxy-server.js",
     "dev": "node proxy-server.js"
   },
-  "keywords": ["rss", "podcast", "cors", "proxy"],
-  "author": "",
-  "license": "MIT"
+  "keywords": [
+    "podcast",
+    "rss",
+    "validator",
+    "value4value",
+    "v4v",
+    "lightning",
+    "chapters",
+    "podcasting2.0"
+  ],
+  "author": "Chad Farrow",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChadFarrow/HGH-checker"
+  }
 }
