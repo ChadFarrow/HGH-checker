@@ -60,7 +60,7 @@ class HGHFeedChecker {
                 console.log('Direct fetch failed, trying CORS proxy:', directError.message);
                 // Use local proxy server first, then fallback to external proxies
                 const proxyServices = [
-                    `http://localhost:3001?url=${encodeURIComponent(this.feedUrl)}`,
+                    `/api/proxy?url=${encodeURIComponent(this.feedUrl)}`,
                     `https://api.allorigins.win/raw?url=${encodeURIComponent(this.feedUrl)}`
                 ];
                 
@@ -501,7 +501,7 @@ class HGHFeedChecker {
                 console.log('Direct chapters fetch failed, trying CORS proxy:', directError.message);
                 // Use proxy for CORS
                 const proxyServices = [
-                    `http://localhost:3001?url=${encodeURIComponent(chaptersUrl)}`,
+                    `/api/proxy?url=${encodeURIComponent(chaptersUrl)}`,
                     `https://api.allorigins.win/raw?url=${encodeURIComponent(chaptersUrl)}`
                 ];
 
@@ -1017,7 +1017,7 @@ class HGHFeedChecker {
             
             // Try multiple proxy services for better reliability
             const proxyServices = [
-                `http://localhost:3001?url=${encodeURIComponent(rssFeedUrl)}`,
+                `/api/proxy?url=${encodeURIComponent(rssFeedUrl)}`,
                 `https://api.allorigins.win/raw?url=${encodeURIComponent(rssFeedUrl)}`,
                 `https://cors-anywhere.herokuapp.com/${rssFeedUrl}`,
                 `https://thingproxy.freeboard.io/fetch/${rssFeedUrl}`
