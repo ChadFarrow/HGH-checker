@@ -3,61 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HGH Feed Checker</title>
+    <title>Podcast Feed Checker</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🎵 HGH Feed Checker</h1>
-            <p>Visualize and validate your Homegrown Hits RSS feed</p>
+            <h1>Podcast Feed Checker</h1>
+            <p>Validate chapters, V4V payment info, and Podcasting 2.0 compliance</p>
         </header>
 
         <div class="controls">
-            <button id="fetchFeed" class="btn btn-primary">Fetch Feed</button>
-            <button id="clearData" class="btn btn-secondary">Clear Data</button>
+            <div class="url-input-wrapper">
+                <input type="url" id="feedUrl" class="feed-url-input"
+                       placeholder="Paste RSS feed URL (e.g., https://example.com/feed.xml)"
+                       value="https://feed.homegrownhits.xyz/feed.xml" />
+            </div>
+            <div class="button-group">
+                <button id="fetchFeed" class="btn btn-primary">Check Feed</button>
+                <button id="clearData" class="btn btn-secondary">Clear</button>
+            </div>
             <div class="status" id="status"></div>
         </div>
 
-        <div class="dashboard">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <h3>Total Episodes</h3>
-                    <div id="episodeCount" class="stat-value">-</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Feed Last Updated</h3>
-                    <div id="lastUpdated" class="stat-value">-</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Live Items</h3>
-                    <div id="liveItems" class="stat-value">-</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Total Duration</h3>
-                    <div id="totalDuration" class="stat-value">-</div>
-                </div>
+        <!-- Validation Results - Collapsible -->
+        <div class="validation-section" id="validationSection" style="display: none;">
+            <div class="section-header" onclick="toggleSection('validationDetails')">
+                <h2>Validation Results</h2>
+                <span class="toggle-icon">▼</span>
             </div>
+            <div class="validation-summary" id="validationSummary"></div>
+            <div class="validation-details" id="validationDetails"></div>
+        </div>
 
-            <div class="main-content">
-                <div class="episodes-section">
-                    <h2>Episodes</h2>
-                    <div class="episodes-container" id="episodesContainer">
-                        <div class="placeholder">Click "Fetch Feed" to load episodes</div>
-                    </div>
-                </div>
+        <!-- Feed Summary - Compact -->
+        <div class="feed-summary" id="feedSummary" style="display: none;">
+            <div class="summary-stats">
+                <span class="stat"><strong id="episodeCount">0</strong> Episodes</span>
+                <span class="stat"><strong id="liveItems">0</strong> Live</span>
+                <span class="stat">Updated: <strong id="lastUpdated">-</strong></span>
+                <span class="stat">Duration: <strong id="totalDuration">-</strong></span>
+            </div>
+        </div>
 
-                <div class="podcast-index-section">
-                    <h2>Podcast Index Info</h2>
-                    <div class="podcast-index-container" id="podcastIndexContainer">
-                        <div class="placeholder">Podcast Index information will appear here</div>
-                    </div>
-                </div>
+        <!-- Episodes List - Clean Flow -->
+        <div class="episodes-section">
+            <div class="episodes-container" id="episodesContainer">
+                <div class="placeholder">Enter a feed URL above and click "Check Feed"</div>
             </div>
         </div>
     </div>
 
     <script src="script.js"></script>
+    <script>
+        function toggleSection(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('collapsed');
+                const icon = el.previousElementSibling?.querySelector('.toggle-icon');
+                if (icon) {
+                    icon.textContent = el.classList.contains('collapsed') ? '▶' : '▼';
+                }
+            }
+        }
+    </script>
 </body>
 </html>

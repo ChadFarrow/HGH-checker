@@ -1,6 +1,6 @@
 class HGHFeedChecker {
     constructor() {
-        this.feedUrl = 'https://feed.homegrownhits.xyz/feed.xml';
+        this.feedUrl = null;  // Now dynamic - read from input
         this.feedData = null;
         this.initializeEventListeners();
     }
@@ -29,9 +29,27 @@ class HGHFeedChecker {
     }
 
     async fetchFeed() {
+        // Read URL from input field
+        const urlInput = document.getElementById('feedUrl');
+        this.feedUrl = urlInput?.value?.trim();
+
+        // Validate URL is provided
+        if (!this.feedUrl) {
+            this.updateStatus('error', 'Please enter a feed URL');
+            return;
+        }
+
+        // Validate URL format
+        try {
+            new URL(this.feedUrl);
+        } catch {
+            this.updateStatus('error', 'Invalid URL format');
+            return;
+        }
+
         this.updateStatus('loading', 'Fetching feed...');
         console.log('Fetching feed from:', this.feedUrl);
-        
+
         try {
             // Try direct fetch first
             let response;
@@ -356,15 +374,34 @@ class HGHFeedChecker {
     displayFeedData() {
         if (!this.feedData) return;
 
+        // Run V4V validation for all episodes
+        const allErrors = [];
+        const allWarnings = [];
+
+        this.feedData.episodes.forEach((episode, index) => {
+            // Validate V4V for songs (remote items only)
+            const v4vResult = this.validateSongV4V(episode, index);
+            allErrors.push(...v4vResult.errors);
+            allWarnings.push(...v4vResult.warnings);
+
+            // Check if episode has chapters
+            if (!episode.chapters) {
+                allWarnings.push(`Episode ${index + 1}: No chapters URL found`);
+            }
+        });
+
+        // Display validation results (errors first)
+        this.displayValidationResults(allErrors, allWarnings);
+
         // Update stats
         this.updateStats();
-        
+
         // Display episodes
         this.displayEpisodes();
-        
+
         // Display live items
         this.displayLiveItems();
-        
+
         // Display Podcast Index information
         this.displayPodcastIndexInfo();
     }
@@ -388,225 +425,64 @@ class HGHFeedChecker {
     displayEpisodes() {
         const container = document.getElementById('episodesContainer');
         const { episodes } = this.feedData;
-        
+
+        // Show feed summary
+        const feedSummary = document.getElementById('feedSummary');
+        if (feedSummary) feedSummary.style.display = 'block';
+
         if (episodes.length === 0) {
             container.innerHTML = '<div class="placeholder">No episodes found</div>';
             return;
         }
 
         const episodesHtml = episodes.map((episode, index) => {
-            const episodeNumber = this.extractEpisodeNumber(episode.title);
             const duration = this.formatDuration(this.parseDuration(episode.duration));
-            const fileSize = episode.enclosure.length ? this.formatFileSize(episode.enclosure.length) : 'Unknown';
-            
-            const tracksHtml = episode.tracks.length > 0 ? `
-                <div class="episode-tracks">
-                    <div class="tracks-title">Tracks:</div>
-                    ${episode.tracks.map(track => `
-                        <div class="track-item">
-                            <span class="track-artist">${track.artist}</span>
-                            <span class="track-title">- ${track.title}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : '';
-
+            const hasChapters = !!episode.chapters;
+            const hasV4V = !!(episode.value && episode.value.timeSplits && episode.value.timeSplits.length > 0);
+            const songCount = hasV4V ? episode.value.timeSplits.filter(s => s.remoteItem).length : 0;
 
             return `
-                <div class="episode-card collapsed" data-episode="${index}">
-                    <div class="episode-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                <div class="episode-card" data-episode="${index}">
+                    <div class="episode-header" onclick="window.toggleEpisode(this)">
                         <div class="episode-title">${episode.title}</div>
-                        <div class="episode-badges">
-                            ${episodeNumber ? `<div class="episode-number">#${episodeNumber}</div>` : ''}
-                            ${episode.chapters ? '<div class="episode-badge chapters-badge">📖 Chapters</div>' : ''}
-                            ${episode.value ? '<div class="episode-badge value-badge">💰 V4V</div>' : ''}
-                            <span class="toggle-icon">▼</span>
+                        <div class="episode-meta">
+                            <span class="episode-date">${this.formatDate(episode.pubDate)}</span>
+                            <span class="episode-duration">${duration}</span>
                         </div>
                     </div>
-                    <div class="episode-content">
-                        <div class="episode-details">
-                        <div class="detail-item">
-                            <div class="detail-label">Duration</div>
-                            <div class="detail-value">${duration}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">File Size</div>
-                            <div class="detail-value">${fileSize}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Published</div>
-                            <div class="detail-value">${this.formatDate(episode.pubDate)}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">GUID</div>
-                            <div class="detail-value">${episode.guid.substring(0, 20)}...</div>
-                        </div>
-                                            </div>
-                        ${episode.value ? `
-                            <div class="episode-value">
-                                <div class="value-title">💰 Value4Value (V4V)</div>
-                                <div class="value-details">
-                                    <div class="value-type">Type: ${episode.value.type}</div>
-                                    <div class="value-method">Method: ${episode.value.method}</div>
-                                    ${episode.value.suggested ? `<div class="value-suggested">Suggested: ${episode.value.suggested} sats</div>` : ''}
-                                </div>
-                                ${episode.value.recipients && episode.value.recipients.length > 0 ? `
-                                    <div class="value-recipients">
-                                        <div class="recipients-title">Recipients:</div>
-                                        ${episode.value.recipients.map(recipient => `
-                                            <div class="recipient-item">
-                                                <div class="recipient-name">${recipient.name || 'Unknown'}</div>
-                                                <div class="recipient-details">
-                                                    <span class="recipient-type">${recipient.type || 'node'}</span>
-                                                    ${recipient.split ? `<span class="recipient-split">Split: ${recipient.split}%</span>` : ''}
-                                                </div>
-                                                ${recipient.address ? `<div class="recipient-address"><a href="https://amboss.space/node/${recipient.address}" target="_blank">${recipient.address}</a></div>` : ''}
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                ` : ''}
+                    <div class="episode-badges">
+                        ${hasChapters ? '<span class="episode-badge chapters-badge">Chapters</span>' : ''}
+                        ${hasV4V ? `<span class="episode-badge value-badge">${songCount} Songs</span>` : ''}
+                        <span class="expand-btn" onclick="window.toggleEpisode(this.closest('.episode-card').querySelector('.episode-header'))">▼ Details</span>
+                    </div>
+                    <div class="episode-content collapsed">
+                        ${hasChapters ? `
+                            <div class="chapters-section">
+                                <div class="chapters-title">Chapters</div>
+                                <div class="chapters-loading" data-url="${episode.chapters}">Loading...</div>
                             </div>
                         ` : ''}
-                                                <div class="episode-media-info">
-                            <div class="media-content">
-                                <div class="media-header">Media Timeline:</div>
-                                <div class="timeline-container">
-                                    ${(() => {
-                                        const hasV4V = episode.value && episode.value.timeSplits && episode.value.timeSplits.length > 0;
-                                        const hasChapters = episode.chapters;
-                                        const remoteItems = hasV4V ? episode.value.timeSplits.filter(split => split.remoteItem).length : 0;
-                                        
-                                        let summaryText = '';
-                                        if (hasV4V && hasChapters) {
-                                            summaryText = `V4V Splits: ${episode.value.timeSplits.length} time periods • Chapters available`;
-                                        } else if (hasV4V) {
-                                            summaryText = `V4V Splits: ${episode.value.timeSplits.length} time periods`;
-                                        } else if (hasChapters) {
-                                            summaryText = `Chapters available`;
-                                        }
-                                        
-                                        if (hasV4V || hasChapters) {
-                                            console.log('Generating unified timeline for episode:', episode.title, 'V4V:', hasV4V, 'Chapters:', hasChapters);
-                                            return `
-                                                <div class="timeline-summary">
-                                                    <span class="summary-label">${summaryText}</span>
-                                                    ${remoteItems > 0 ? ` (${remoteItems} remote items)` : ''}
-                                                    <button class="toggle-remote-details" onclick="window.toggleRemoteDetails(this)">
-                                                    <span class="toggle-text">${index === 0 ? 'Hide Details' : 'Show Details'}</span>
-                                                    <span class="toggle-icon">${index === 0 ? '▲' : '▼'}</span>
-                                                </button>
-                                                </div>
-                                                                                            <div class="remote-details ${index === 0 ? '' : 'collapsed'}">
-                                                <div class="remote-details-title">Remote Item Details:</div>
-                                                ${episode.value.timeSplits.map((split, index) => split.remoteItem ? `
-                                                    <div class="remote-item-detail">
-                                                        <div class="remote-time">${this.formatTime(parseFloat(split.startTime))} - ${this.formatTime(parseFloat(split.startTime) + parseFloat(split.duration))}</div>
-                                                        <div class="remote-content">
-                                                            <div class="remote-artwork">
-                                                                <div class="artwork-placeholder" data-feed-guid="${split.remoteItem.feedGuid}" data-item-guid="${split.remoteItem.itemGuid}">
-                                                                    <span class="artwork-loading">⏳</span>
-                                                                </div>
-                                                            </div>
-                                                            <div class="remote-info">
-                                                                <span class="remote-feed">Feed: ${split.remoteItem.feedGuid.substring(0, 8)}...</span>
-                                                                <span class="remote-episode">Episode: ${split.remoteItem.itemGuid.substring(0, 8)}...</span>
-                                                                <span class="remote-percentage">${split.remotePercentage}%</span>
-                                                                ${(() => {
-                                                                    if (split.remoteItem.value && split.remoteItem.value.timeSplits) {
-                                                                        console.log('🎯 Rendering nested V4V splits for remoteItem:', {
-                                                                            feedGuid: split.remoteItem.feedGuid.substring(0, 8),
-                                                                            itemGuid: split.remoteItem.itemGuid.substring(0, 8),
-                                                                            splitsCount: split.remoteItem.value.timeSplits.length
-                                                                        });
-                                                                        return `
-                                                                    <div class="nested-splits">
-                                                                        <div class="nested-splits-header">
-                                                                            <span class="nested-label">Remote V4V Splits: ${split.remoteItem.value.timeSplits.length} periods</span>
-                                                                            <button class="toggle-nested-splits" onclick="window.toggleNestedSplits(this)">
-                                                                                <span class="toggle-text">Show Splits</span>
-                                                                                <span class="toggle-icon">▼</span>
-                                                                            </button>
-                                                                        </div>
-                                                                        <div class="nested-splits-content collapsed">
-                                                                            ${split.remoteItem.value.timeSplits.map(nestedSplit => `
-                                                                                <div class="nested-split-item">
-                                                                                    <div class="nested-split-time">${this.formatTime(parseFloat(nestedSplit.startTime))} - ${this.formatTime(parseFloat(nestedSplit.startTime) + parseFloat(nestedSplit.duration))}</div>
-                                                                                    <div class="nested-split-percentage">${nestedSplit.remotePercentage}%</div>
-                                                                                    ${nestedSplit.remoteItem ? `
-                                                                                        <div class="nested-remote-item">
-                                                                                            <span class="nested-remote-feed">→ ${nestedSplit.remoteItem.feedGuid.substring(0, 8)}...</span>
-                                                                                            <span class="nested-remote-episode">${nestedSplit.remoteItem.itemGuid.substring(0, 8)}...</span>
-                                                                                        </div>
-                                                                                    ` : ''}
-                                                                                </div>
-                                                                            `).join('')}
-                                                                        </div>
-                                                                    </div>
-                                                                        `;
-                                                                    } else {
-                                                                        console.log('❌ No nested V4V splits found for remoteItem:', {
-                                                                            feedGuid: split.remoteItem.feedGuid.substring(0, 8),
-                                                                            itemGuid: split.remoteItem.itemGuid.substring(0, 8),
-                                                                            hasValue: !!split.remoteItem.value,
-                                                                            hasTimeSplits: !!(split.remoteItem.value && split.remoteItem.value.timeSplits)
-                                                                        });
-                                                                        return '';
-                                                                    }
-                                                                })()}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ` : '').join('')}
-                                                
-                                                <!-- Chapters Section -->
-                                                ${episode.chapters ? `
-                                                    <div class="chapters-section">
-                                                        <div class="chapters-title">📖 Chapters</div>
-                                                        <div class="chapters-loading">Loading chapters from: ${episode.chapters}</div>
-                                                    </div>
-                                                ` : ''}
-                                            </div>
-                                            `;
-                                        } else if (hasChapters) {
-                                            // Show chapters even if no V4V splits
-                                            return `
-                                            <div class="remote-details ${index === 0 ? '' : 'collapsed'}">
-                                                <div class="remote-details-title">Media Timeline:</div>
-                                                <div class="chapters-section">
-                                                    <div class="chapters-title">📖 Chapters</div>
-                                                    <div class="chapters-loading">Loading chapters from: ${episode.chapters}</div>
-                                                </div>
-                                            </div>
-                                            `;
-                                        } else {
-                                            return '';
-                                        }
-                                    })()}
-                                </div>
+                        ${hasV4V ? `
+                            <div class="v4v-section">
+                                <div class="v4v-title">V4V Time Splits (${episode.value.timeSplits.length})</div>
+                                ${episode.value.timeSplits.map(split => split.remoteItem ? `
+                                    <div class="song-item">
+                                        <span class="song-time">${this.formatTime(parseFloat(split.startTime))}</span>
+                                        <span class="song-duration">${this.formatTime(parseFloat(split.duration))}</span>
+                                        <span class="song-pct">${split.remotePercentage || 100}%</span>
+                                    </div>
+                                ` : '').join('')}
                             </div>
-                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
         }).join('');
 
         container.innerHTML = episodesHtml;
-        
-        // Auto-load artwork for the first episode's V4V splits if they are expanded
-        setTimeout(() => {
-            const firstEpisode = container.querySelector('.episode-card[data-episode="0"]');
-            if (firstEpisode) {
-                const remoteDetails = firstEpisode.querySelector('.remote-details:not(.collapsed)');
-                if (remoteDetails) {
-                    console.log('Auto-loading artwork for latest episode V4V splits');
-                    this.loadRemoteItemArtworkForEpisode(firstEpisode);
-                }
-            }
-        }, 100);
-        
-        // Load chapters for episodes that have them
+
+        // Load chapters for expanded episodes
         episodes.forEach((episode, index) => {
-            console.log(`Episode ${index + 1} chapters:`, episode.chapters);
             if (episode.chapters) {
                 this.loadChapters(episode.chapters, index);
             }
@@ -615,14 +491,50 @@ class HGHFeedChecker {
 
     async loadChapters(chaptersUrl, episodeIndex) {
         try {
-            const response = await fetch(chaptersUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            let response;
+
+            // Try direct fetch first
+            try {
+                response = await fetch(chaptersUrl);
+                if (!response.ok) throw new Error('Direct fetch failed');
+            } catch (directError) {
+                console.log('Direct chapters fetch failed, trying CORS proxy:', directError.message);
+                // Use proxy for CORS
+                const proxyServices = [
+                    `http://localhost:3001?url=${encodeURIComponent(chaptersUrl)}`,
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(chaptersUrl)}`
+                ];
+
+                let proxyWorked = false;
+                for (const proxyUrl of proxyServices) {
+                    try {
+                        console.log('Trying chapters proxy:', proxyUrl);
+                        response = await fetch(proxyUrl);
+                        if (response.ok) {
+                            console.log('Chapters proxy fetch successful');
+                            proxyWorked = true;
+                            break;
+                        }
+                    } catch (proxyError) {
+                        console.log('Chapters proxy failed:', proxyError.message);
+                        continue;
+                    }
+                }
+
+                if (!proxyWorked) {
+                    throw new Error('All proxy services failed for chapters');
+                }
             }
-            
+
             const chaptersData = await response.json();
             this.displayChapters(chaptersData, episodeIndex);
-            
+
+            // Validate chapter timing
+            const timingErrors = this.validateChapterTiming(chaptersData, episodeIndex);
+            if (timingErrors.length > 0) {
+                console.warn('Chapter timing issues:', timingErrors);
+            }
+
         } catch (error) {
             console.error('Error loading chapters:', error);
             this.displayChaptersError(episodeIndex);
@@ -638,43 +550,259 @@ class HGHFeedChecker {
             return;
         }
 
+        // Get V4V time splits for this episode to match with chapters
+        const episode = this.feedData?.episodes?.[episodeIndex];
+        const timeSplits = episode?.value?.timeSplits || [];
+
         const chaptersHtml = chaptersData.chapters.map((chapter, index) => {
             const startTime = this.formatTime(chapter.startTime);
-            
-            // Calculate end time: use next chapter's start time, or if it's the last chapter, use a reasonable duration
+
+            // Calculate end time
             let endTime = '';
+            let endSeconds = 0;
             if (index < chaptersData.chapters.length - 1) {
-                // Use next chapter's start time as this chapter's end time
-                endTime = this.formatTime(chaptersData.chapters[index + 1].startTime);
+                endSeconds = chaptersData.chapters[index + 1].startTime;
+                endTime = this.formatTime(endSeconds);
             } else {
-                // For the last chapter, add 5 minutes as a reasonable duration
-                endTime = this.formatTime(chapter.startTime + 300);
+                endSeconds = chapter.startTime + 300;
+                endTime = this.formatTime(endSeconds);
             }
-            
+
+            // Find matching V4V split for this chapter time range
+            const matchingSplit = timeSplits.find(split => {
+                const splitStart = parseFloat(split.startTime);
+                return splitStart >= chapter.startTime && splitStart < endSeconds;
+            });
+
+            const hasDetails = chapter.image || chapter.url || matchingSplit;
+            const hasV4V = matchingSplit && matchingSplit.remoteItem;
+
             return `
-                <div class="chapter-item">
-                    <div class="chapter-time">${startTime} - ${endTime}</div>
-                    <div class="chapter-title">${chapter.title}</div>
-                    ${chapter.url ? `<div class="chapter-url"><a href="${chapter.url}" target="_blank">Link</a></div>` : ''}
-                    ${chapter.image ? `<div class="chapter-image"><img src="${chapter.image}" alt="Chapter image" /></div>` : ''}
+                <div class="chapter-item ${hasDetails ? 'expandable' : ''}" onclick="${hasDetails ? 'window.toggleChapter(this)' : ''}">
+                    <div class="chapter-header">
+                        <div class="chapter-time">${startTime} - ${endTime}</div>
+                        <div class="chapter-title">${chapter.title}</div>
+                        ${hasV4V ? '<span class="chapter-badge v4v">V4V</span>' : ''}
+                        ${chapter.url ? '<span class="chapter-badge has-link">Link</span>' : ''}
+                        ${chapter.image ? '<span class="chapter-badge has-art">Art</span>' : ''}
+                        ${hasDetails ? '<span class="chapter-expand">▼</span>' : ''}
+                    </div>
+                    ${hasDetails ? `
+                        <div class="chapter-details collapsed">
+                            ${chapter.image ? `
+                                <div class="chapter-artwork">
+                                    <img src="${chapter.image}" alt="${chapter.title}" />
+                                </div>
+                            ` : ''}
+                            ${chapter.url ? `
+                                <div class="chapter-link">
+                                    <span class="detail-label">Link:</span>
+                                    <a href="${chapter.url}" target="_blank">${chapter.url}</a>
+                                </div>
+                            ` : ''}
+                            ${hasV4V ? this.renderChapterV4V(matchingSplit, episode) : ''}
+                        </div>
+                    ` : ''}
                 </div>
             `;
         }).join('');
 
-        // Replace loading indicator with chapters in the unified timeline
-        chaptersContainer.innerHTML = `
-            <div class="chapters-list">
-                ${chaptersHtml}
-            </div>
-        `;
-        
+        chaptersContainer.innerHTML = `<div class="chapters-list">${chaptersHtml}</div>`;
+
         // Update the chapters title to show count
         const chaptersSection = chaptersContainer.closest('.chapters-section');
         if (chaptersSection) {
             const chaptersTitle = chaptersSection.querySelector('.chapters-title');
             if (chaptersTitle) {
-                chaptersTitle.textContent = `📖 Chapters (${chaptersData.chapters.length})`;
+                chaptersTitle.textContent = `Chapters (${chaptersData.chapters.length})`;
             }
+        }
+    }
+
+    renderChapterV4V(split, episode) {
+        if (!split || !split.remoteItem) return '';
+
+        const remote = split.remoteItem;
+        const remotePercent = parseFloat(split.remotePercentage) || 100;
+        const showPercent = 100 - remotePercent;
+
+        let html = `<div class="chapter-v4v" data-feed-guid="${remote.feedGuid || ''}" data-item-guid="${remote.itemGuid || ''}">
+            <div class="v4v-header">V4V Payment Breakdown</div>
+
+            <div class="artist-info-container">
+                <div class="artist-info-loading">Loading artist info...</div>
+            </div>
+
+            <div class="v4v-breakdown">
+                <div class="breakdown-section song-section">
+                    <div class="breakdown-header">
+                        <span class="breakdown-icon">🎵</span>
+                        <span class="breakdown-title">Song Artist</span>
+                        <span class="breakdown-pct">${remotePercent}%</span>
+                    </div>
+                    <div class="breakdown-details">
+                        <div class="guid-info">
+                            <div class="guid-row"><span class="guid-label">Feed:</span> <span class="guid-value">${remote.feedGuid || 'N/A'}</span></div>
+                            <div class="guid-row"><span class="guid-label">Item:</span> <span class="guid-value">${remote.itemGuid || 'N/A'}</span></div>
+                        </div>
+                        ${remote.value?.recipients && remote.value.recipients.length > 0 ? `
+                            <div class="nested-splits">
+                                <div class="nested-splits-header">Artist Splits (of ${remotePercent}%):</div>
+                                ${remote.value.recipients.map(r => {
+                                    const actualPct = ((parseFloat(r.split) / 100) * remotePercent).toFixed(1);
+                                    return `
+                                    <div class="split-row">
+                                        <span class="split-name">${r.name || 'Unknown'}</span>
+                                        <span class="split-pct">${r.split}%</span>
+                                        <span class="split-actual">= ${actualPct}% total</span>
+                                    </div>
+                                `}).join('')}
+                            </div>
+                        ` : '<div class="no-splits">No nested splits defined</div>'}
+                    </div>
+                </div>
+
+                ${showPercent > 0 ? `
+                <div class="breakdown-section show-section">
+                    <div class="breakdown-header">
+                        <span class="breakdown-icon">🎙️</span>
+                        <span class="breakdown-title">Show (HGH)</span>
+                        <span class="breakdown-pct">${showPercent}%</span>
+                    </div>
+                    ${episode?.value?.recipients && episode.value.recipients.length > 0 ? `
+                        <div class="breakdown-details">
+                            <div class="nested-splits">
+                                <div class="nested-splits-header">Show Splits (of ${showPercent}%):</div>
+                                ${episode.value.recipients.map(r => {
+                                    const actualPct = ((parseFloat(r.split) / 100) * showPercent).toFixed(2);
+                                    const addressLink = r.address ? `<a href="https://amboss.space/node/${r.address}" target="_blank" class="address-link">${r.address}</a>` : 'No address';
+                                    return `
+                                    <div class="split-row">
+                                        <span class="split-name">${r.name || 'Unknown'}</span>
+                                        <span class="split-pct">${r.split}%</span>
+                                        <span class="split-actual">= ${actualPct}% total</span>
+                                    </div>
+                                    <div class="split-address">${addressLink}</div>
+                                `}).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+                ` : ''}
+            </div>
+        </div>`;
+
+        return html;
+    }
+
+    async loadArtistInfo(container, feedGuid, itemGuid) {
+        const infoContainer = container.querySelector('.artist-info-container');
+        if (!infoContainer || infoContainer.classList.contains('loaded')) return;
+
+        infoContainer.classList.add('loaded');
+
+        try {
+            // Use Podcast Index API to get episode and feed info
+            const apiKey = 'CM9M48BRFRTRMUCAWV82';
+            const apiSecret = 'WbB4Yx7zFLWbUvCYccb8YsKVeN5Zd2SgS4tEQjet';
+            const timestamp = Math.floor(Date.now() / 1000);
+            const authString = apiKey + apiSecret + timestamp;
+            const authHash = await this.sha1(authString);
+
+            const headers = {
+                'User-Agent': 'HGH-Checker/1.0',
+                'X-Auth-Key': apiKey,
+                'X-Auth-Date': timestamp.toString(),
+                'Authorization': authHash
+            };
+
+            let songTitle = null;
+            let artistName = null;
+            let albumArt = null;
+            let feedTitle = null;
+            let v4vRecipients = [];
+
+            // Try to get episode info first
+            try {
+                const episodeResponse = await fetch(`https://api.podcastindex.org/api/1.0/episodes/byguid?guid=${encodeURIComponent(itemGuid)}&feedguid=${encodeURIComponent(feedGuid)}`, { headers });
+                if (episodeResponse.ok) {
+                    const episodeData = await episodeResponse.json();
+                    if (episodeData.episode) {
+                        songTitle = episodeData.episode.title;
+                        albumArt = episodeData.episode.image || episodeData.episode.feedImage;
+                        feedTitle = episodeData.episode.feedTitle;
+                        // Get V4V from episode if available
+                        if (episodeData.episode.value?.destinations) {
+                            v4vRecipients = episodeData.episode.value.destinations;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Episode lookup failed:', e.message);
+            }
+
+            // Get feed info for artist name and V4V
+            try {
+                const feedResponse = await fetch(`https://api.podcastindex.org/api/1.0/podcasts/byguid?guid=${encodeURIComponent(feedGuid)}`, { headers });
+                if (feedResponse.ok) {
+                    const feedData = await feedResponse.json();
+                    if (feedData.feed) {
+                        artistName = feedData.feed.author || feedData.feed.title;
+                        if (!albumArt) albumArt = feedData.feed.image;
+                        if (!feedTitle) feedTitle = feedData.feed.title;
+                        // Get V4V from feed if not already from episode
+                        if (v4vRecipients.length === 0 && feedData.feed.value?.destinations) {
+                            v4vRecipients = feedData.feed.value.destinations;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Feed lookup failed:', e.message);
+            }
+
+            // Build the artist info display
+            if (songTitle || artistName || albumArt) {
+                infoContainer.innerHTML = `
+                    <div class="artist-info">
+                        ${albumArt ? `<img src="${albumArt}" alt="Album art" class="artist-artwork" />` : ''}
+                        <div class="artist-details">
+                            ${songTitle ? `<div class="song-title">${songTitle}</div>` : ''}
+                            ${artistName ? `<div class="artist-name">by ${artistName}</div>` : ''}
+                            ${feedTitle && feedTitle !== artistName ? `<div class="feed-title">${feedTitle}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                infoContainer.innerHTML = '<div class="artist-info-error">Could not load artist info</div>';
+            }
+
+            // Update the nested splits section with fetched V4V data
+            if (v4vRecipients.length > 0) {
+                const splitsContainer = container.querySelector('.no-splits');
+                if (splitsContainer) {
+                    const remotePercent = 99; // Default, could be parsed from parent
+                    splitsContainer.outerHTML = `
+                        <div class="nested-splits">
+                            <div class="nested-splits-header">Artist Payment Splits:</div>
+                            ${v4vRecipients.map(r => {
+                                const actualPct = ((parseFloat(r.split) / 100) * remotePercent).toFixed(1);
+                                const addressLink = r.address ? `<a href="https://amboss.space/node/${r.address}" target="_blank" class="address-link">${r.address}</a>` : 'No address';
+                                return `
+                                <div class="split-row">
+                                    <span class="split-name">${r.name || 'Unknown'}</span>
+                                    <span class="split-pct">${r.split}%</span>
+                                    <span class="split-actual">= ${actualPct}% total</span>
+                                </div>
+                                <div class="split-address">${addressLink}</div>
+                            `}).join('')}
+                        </div>
+                    `;
+                }
+            }
+
+        } catch (error) {
+            console.error('Error loading artist info:', error);
+            infoContainer.innerHTML = '<div class="artist-info-error">Could not load artist info</div>';
         }
     }
 
@@ -1316,6 +1444,138 @@ class HGHFeedChecker {
         }
     }
 
+    // Validate chapter timing - check for sequential timestamps and no overlaps
+    validateChapterTiming(chaptersData, episodeIndex) {
+        const errors = [];
+        const chapters = chaptersData.chapters || [];
+
+        for (let i = 0; i < chapters.length; i++) {
+            const chapter = chapters[i];
+            const nextChapter = chapters[i + 1];
+
+            // Check for valid startTime
+            if (chapter.startTime === undefined || chapter.startTime < 0) {
+                errors.push(`Episode ${episodeIndex + 1}, Chapter ${i + 1}: Invalid start time`);
+            }
+
+            // Check times are sequential (no overlaps)
+            if (nextChapter && chapter.startTime >= nextChapter.startTime) {
+                errors.push(`Episode ${episodeIndex + 1}, Chapter ${i + 1}: Start time (${this.formatTime(chapter.startTime)}) overlaps with next chapter (${this.formatTime(nextChapter.startTime)})`);
+            }
+
+            // Check chapter has a title
+            if (!chapter.title || chapter.title.trim() === '') {
+                errors.push(`Episode ${episodeIndex + 1}, Chapter ${i + 1}: Missing title`);
+            }
+        }
+
+        return errors;
+    }
+
+    // Validate V4V for songs only (remote items)
+    validateSongV4V(episode, episodeIndex) {
+        const errors = [];
+        const warnings = [];
+
+        if (!episode.value?.timeSplits) {
+            warnings.push(`Episode ${episodeIndex + 1}: No V4V time splits found`);
+            return { errors, warnings };
+        }
+
+        // Only check splits that have remoteItem (these are songs)
+        const songSplits = episode.value.timeSplits.filter(split => split.remoteItem);
+
+        if (songSplits.length === 0) {
+            warnings.push(`Episode ${episodeIndex + 1}: No songs (remote items) found in V4V splits`);
+            return { errors, warnings };
+        }
+
+        songSplits.forEach((split, i) => {
+            const songTime = this.formatTime(parseFloat(split.startTime));
+
+            // Check remote item has required fields
+            if (!split.remoteItem.feedGuid) {
+                errors.push(`Episode ${episodeIndex + 1}, Song at ${songTime}: Missing feed GUID`);
+            }
+            if (!split.remoteItem.itemGuid) {
+                errors.push(`Episode ${episodeIndex + 1}, Song at ${songTime}: Missing item GUID`);
+            }
+
+            // Check split has valid percentage
+            if (split.remotePercentage) {
+                const pct = parseFloat(split.remotePercentage);
+                if (isNaN(pct) || pct < 0 || pct > 100) {
+                    errors.push(`Episode ${episodeIndex + 1}, Song at ${songTime}: Invalid remote percentage (${split.remotePercentage})`);
+                }
+            }
+
+            // Check duration is valid
+            if (!split.duration || parseFloat(split.duration) <= 0) {
+                warnings.push(`Episode ${episodeIndex + 1}, Song at ${songTime}: Missing or invalid duration`);
+            }
+        });
+
+        return { errors, warnings };
+    }
+
+    // Display validation results in the validation section
+    displayValidationResults(allErrors, allWarnings) {
+        const validationSection = document.getElementById('validationSection');
+        const summaryEl = document.getElementById('validationSummary');
+        const detailsEl = document.getElementById('validationDetails');
+
+        if (!validationSection || !summaryEl || !detailsEl) return;
+
+        validationSection.style.display = 'block';
+
+        const errorCount = allErrors.length;
+        const warningCount = allWarnings.length;
+
+        // Summary
+        if (errorCount === 0 && warningCount === 0) {
+            summaryEl.innerHTML = `
+                <div class="validation-pass">
+                    <span class="validation-icon">✅</span>
+                    <span>All checks passed!</span>
+                </div>
+            `;
+        } else {
+            summaryEl.innerHTML = `
+                <div class="validation-counts">
+                    ${errorCount > 0 ? `<span class="error-count">❌ ${errorCount} error${errorCount !== 1 ? 's' : ''}</span>` : ''}
+                    ${warningCount > 0 ? `<span class="warning-count">⚠️ ${warningCount} warning${warningCount !== 1 ? 's' : ''}</span>` : ''}
+                </div>
+            `;
+        }
+
+        // Details
+        let detailsHtml = '';
+
+        if (errorCount > 0) {
+            detailsHtml += `
+                <div class="validation-errors">
+                    <h3>Errors</h3>
+                    <ul>
+                        ${allErrors.map(err => `<li>${err}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        if (warningCount > 0) {
+            detailsHtml += `
+                <div class="validation-warnings">
+                    <h3>Warnings</h3>
+                    <ul>
+                        ${allWarnings.map(warn => `<li>${warn}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        detailsEl.innerHTML = detailsHtml;
+    }
+
     formatTime(seconds) {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
@@ -1378,10 +1638,14 @@ class HGHFeedChecker {
     }
 
     validateFeed() {
-        const container = document.getElementById('validationContainer');
+        const container = document.getElementById('validationDetails');
+        const validationSection = document.getElementById('validationSection');
         const validations = [];
-        
-        if (!this.feedData) return;
+
+        if (!this.feedData || !container) return;
+
+        // Show the validation section
+        if (validationSection) validationSection.style.display = 'block';
 
         const { channel, episodes, liveItems } = this.feedData;
 
@@ -1709,20 +1973,29 @@ class HGHFeedChecker {
 
     clearData() {
         this.feedData = null;
-        document.getElementById('episodesContainer').innerHTML = '<div class="placeholder">Click "Fetch Feed" to load episodes</div>';
-        document.getElementById('episodeCount').textContent = '-';
-        document.getElementById('lastUpdated').textContent = '-';
-        document.getElementById('liveItems').textContent = '-';
-        document.getElementById('totalDuration').textContent = '-';
+        const episodesContainer = document.getElementById('episodesContainer');
+        if (episodesContainer) episodesContainer.innerHTML = '<div class="placeholder">Enter a feed URL above and click "Check Feed"</div>';
+
+        const episodeCount = document.getElementById('episodeCount');
+        const lastUpdated = document.getElementById('lastUpdated');
+        const liveItems = document.getElementById('liveItems');
+        const totalDuration = document.getElementById('totalDuration');
+        const feedSummary = document.getElementById('feedSummary');
+        const validationSection = document.getElementById('validationSection');
+
+        if (episodeCount) episodeCount.textContent = '0';
+        if (lastUpdated) lastUpdated.textContent = '-';
+        if (liveItems) liveItems.textContent = '0';
+        if (totalDuration) totalDuration.textContent = '-';
+        if (feedSummary) feedSummary.style.display = 'none';
+        if (validationSection) validationSection.style.display = 'none';
+
         this.updateStatus('', '');
-        
-        // Clear Podcast Index info
-        document.getElementById('podcastIndexContainer').innerHTML = '<div class="placeholder">Podcast Index information will appear here</div>';
     }
 
     displayPodcastIndexInfo() {
         const container = document.getElementById('podcastIndexContainer');
-        if (!this.feedData) return;
+        if (!this.feedData || !container) return;
 
         const { channel, episodes, liveItems } = this.feedData;
         
@@ -1821,9 +2094,53 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing HGHFeedChecker');
     const checker = new HGHFeedChecker();
     console.log('HGHFeedChecker initialized:', checker);
-    
+
     // Make toggle functions globally accessible
     window.toggleRemoteDetails = (button) => checker.toggleRemoteDetails(button);
     window.toggleChapters = (button) => checker.toggleChapters(button);
     window.toggleNestedSplits = (button) => checker.toggleNestedSplits(button);
+
+    // Toggle episode expand/collapse
+    window.toggleEpisode = (header) => {
+        const card = header.closest('.episode-card');
+        const content = card.querySelector('.episode-content');
+        const expandBtn = card.querySelector('.expand-btn');
+        if (content) {
+            content.classList.toggle('collapsed');
+            if (expandBtn) {
+                expandBtn.textContent = content.classList.contains('collapsed') ? '▼ Details' : '▲ Hide';
+            }
+        }
+    };
+
+    window.toggleChapter = (chapterItem) => {
+        const details = chapterItem.querySelector('.chapter-details');
+        const expandIcon = chapterItem.querySelector('.chapter-expand');
+        if (details) {
+            const wasCollapsed = details.classList.contains('collapsed');
+            details.classList.toggle('collapsed');
+            if (expandIcon) {
+                expandIcon.textContent = details.classList.contains('collapsed') ? '▼' : '▲';
+            }
+
+            // Load artist info when expanding
+            if (wasCollapsed) {
+                const v4vContainer = details.querySelector('.chapter-v4v');
+                if (v4vContainer) {
+                    const feedGuid = v4vContainer.dataset.feedGuid;
+                    const itemGuid = v4vContainer.dataset.itemGuid;
+                    if (feedGuid && itemGuid) {
+                        checker.loadArtistInfo(v4vContainer, feedGuid, itemGuid);
+                    }
+                }
+            }
+        }
+    };
+
+    // Auto-load the default feed if URL is pre-filled
+    const feedInput = document.getElementById('feedUrl');
+    if (feedInput && feedInput.value) {
+        console.log('Auto-loading default feed:', feedInput.value);
+        checker.fetchFeed();
+    }
 });
