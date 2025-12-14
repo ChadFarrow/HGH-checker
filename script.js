@@ -422,6 +422,38 @@ class HGHFeedChecker {
         document.getElementById('totalDuration').textContent = this.formatDuration(totalDuration);
     }
 
+    getEpisodeErrors(episode) {
+        const errors = [];
+        const warnings = [];
+
+        // Check for chapters
+        if (!episode.chapters) {
+            warnings.push('No chapters file');
+        }
+
+        // Check for V4V
+        if (!episode.value?.timeSplits || episode.value.timeSplits.length === 0) {
+            warnings.push('No V4V time splits');
+        } else {
+            // Validate song V4V
+            const songSplits = episode.value.timeSplits.filter(s => s.remoteItem);
+            songSplits.forEach(split => {
+                if (!split.remoteItem.feedGuid) {
+                    errors.push(`Song at ${this.formatTime(parseFloat(split.startTime))}: Missing feed GUID`);
+                }
+                if (!split.remoteItem.itemGuid) {
+                    errors.push(`Song at ${this.formatTime(parseFloat(split.startTime))}: Missing item GUID`);
+                }
+            });
+        }
+
+        // Check basic episode requirements
+        if (!episode.guid) errors.push('Missing episode GUID');
+        if (!episode.enclosure) errors.push('Missing audio file');
+
+        return { errors, warnings };
+    }
+
     displayEpisodes() {
         const container = document.getElementById('episodesContainer');
         const { episodes } = this.feedData;
@@ -441,8 +473,13 @@ class HGHFeedChecker {
             const hasV4V = !!(episode.value && episode.value.timeSplits && episode.value.timeSplits.length > 0);
             const songCount = hasV4V ? episode.value.timeSplits.filter(s => s.remoteItem).length : 0;
 
+            // Get validation errors for this episode
+            const { errors, warnings } = this.getEpisodeErrors(episode);
+            const hasIssues = errors.length > 0 || warnings.length > 0;
+            const issueCount = errors.length + warnings.length;
+
             return `
-                <div class="episode-card" data-episode="${index}">
+                <div class="episode-card ${hasIssues ? 'has-issues' : ''}" data-episode="${index}">
                     <div class="episode-header" onclick="window.toggleEpisode(this)">
                         <div class="episode-title">${episode.title}</div>
                         <div class="episode-meta">
@@ -453,9 +490,16 @@ class HGHFeedChecker {
                     <div class="episode-badges">
                         ${hasChapters ? '<span class="episode-badge chapters-badge">Chapters</span>' : ''}
                         ${hasV4V ? `<span class="episode-badge value-badge">${songCount} Songs</span>` : ''}
+                        ${hasIssues ? `<span class="episode-badge error-badge">${issueCount} Issue${issueCount > 1 ? 's' : ''}</span>` : ''}
                         <span class="expand-btn" onclick="window.toggleEpisode(this.closest('.episode-card').querySelector('.episode-header'))">▼ Details</span>
                     </div>
                     <div class="episode-content collapsed">
+                        ${hasIssues ? `
+                            <div class="episode-errors">
+                                ${errors.map(e => `<div class="episode-error">❌ ${e}</div>`).join('')}
+                                ${warnings.map(w => `<div class="episode-warning">⚠️ ${w}</div>`).join('')}
+                            </div>
+                        ` : ''}
                         ${hasChapters ? `
                             <div class="chapters-section">
                                 <div class="chapters-title">Chapters</div>
@@ -1455,17 +1499,51 @@ class HGHFeedChecker {
 
             // Check for valid startTime
             if (chapter.startTime === undefined || chapter.startTime < 0) {
-                errors.push(`Episode ${episodeIndex + 1}, Chapter ${i + 1}: Invalid start time`);
+                errors.push(`Chapter ${i + 1}: Invalid start time`);
             }
 
             // Check times are sequential (no overlaps)
             if (nextChapter && chapter.startTime >= nextChapter.startTime) {
-                errors.push(`Episode ${episodeIndex + 1}, Chapter ${i + 1}: Start time (${this.formatTime(chapter.startTime)}) overlaps with next chapter (${this.formatTime(nextChapter.startTime)})`);
+                errors.push(`Chapter ${i + 1}: Time overlap at ${this.formatTime(chapter.startTime)}`);
             }
 
             // Check chapter has a title
             if (!chapter.title || chapter.title.trim() === '') {
-                errors.push(`Episode ${episodeIndex + 1}, Chapter ${i + 1}: Missing title`);
+                errors.push(`Chapter ${i + 1}: Missing title`);
+            }
+        }
+
+        // Inject errors into the episode card
+        if (errors.length > 0) {
+            const episodeCard = document.querySelector(`[data-episode="${episodeIndex}"]`);
+            if (episodeCard) {
+                // Add has-issues class if not already present
+                episodeCard.classList.add('has-issues');
+
+                // Update or create error badge
+                let errorBadge = episodeCard.querySelector('.error-badge');
+                if (!errorBadge) {
+                    const badges = episodeCard.querySelector('.episode-badges');
+                    const expandBtn = badges.querySelector('.expand-btn');
+                    errorBadge = document.createElement('span');
+                    errorBadge.className = 'episode-badge error-badge';
+                    badges.insertBefore(errorBadge, expandBtn);
+                }
+                const currentCount = parseInt(errorBadge.textContent) || 0;
+                const newCount = currentCount + errors.length;
+                errorBadge.textContent = `${newCount} Issue${newCount > 1 ? 's' : ''}`;
+
+                // Add errors to episode-errors container or create one
+                let errorsContainer = episodeCard.querySelector('.episode-errors');
+                if (!errorsContainer) {
+                    errorsContainer = document.createElement('div');
+                    errorsContainer.className = 'episode-errors';
+                    const content = episodeCard.querySelector('.episode-content');
+                    content.insertBefore(errorsContainer, content.firstChild);
+                }
+                errors.forEach(err => {
+                    errorsContainer.innerHTML += `<div class="episode-error">❌ ${err}</div>`;
+                });
             }
         }
 

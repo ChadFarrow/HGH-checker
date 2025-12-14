@@ -27,16 +27,6 @@
             <div class="status" id="status"></div>
         </div>
 
-        <!-- Validation Results - Collapsible -->
-        <div class="validation-section" id="validationSection" style="display: none;">
-            <div class="section-header" onclick="toggleSection('validationDetails')">
-                <h2>Validation Results</h2>
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="validation-summary" id="validationSummary"></div>
-            <div class="validation-details" id="validationDetails"></div>
-        </div>
-
         <!-- Feed Summary - Compact -->
         <div class="feed-summary" id="feedSummary" style="display: none;">
             <div class="summary-stats">
@@ -56,17 +46,5 @@
     </div>
 
     <script src="script.js"></script>
-    <script>
-        function toggleSection(id) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.classList.toggle('collapsed');
-                const icon = el.previousElementSibling?.querySelector('.toggle-icon');
-                if (icon) {
-                    icon.textContent = el.classList.contains('collapsed') ? '▶' : '▼';
-                }
-            }
-        }
-    </script>
 </body>
 </html>
