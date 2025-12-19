@@ -140,7 +140,16 @@ class HGHFeedChecker {
             complete: this.getTextContent(channel, 'podcast\\:complete'),
             block: this.getTextContent(channel, 'podcast\\:block'),
             medium: this.getTextContent(channel, 'podcast\\:medium'),
-            guid: this.getTextContent(channel, 'podcast\\:guid')
+            guid: (() => {
+                // Try multiple approaches for podcast:guid
+                let guid = this.getTextContent(channel, 'podcast\\:guid');
+                if (!guid) {
+                    const guidEl = channel.getElementsByTagName('podcast:guid')[0];
+                    guid = guidEl ? guidEl.textContent.trim() : '';
+                }
+                console.log('📌 Extracted channel GUID:', guid);
+                return guid;
+            })()
         };
 
         // Extract episodes
@@ -280,7 +289,7 @@ class HGHFeedChecker {
                 remotePercentage: split.getAttribute('remotePercentage') || '',
                 duration: split.getAttribute('duration') || '',
                 remoteItem: (() => {
-                    const remoteItem = split.querySelector('remoteItem');
+                    const remoteItem = split.querySelector('podcast\\:remoteItem, remoteItem');
                     if (!remoteItem) return null;
                     
                     const feedGuid = remoteItem.getAttribute('feedGuid') || '';
@@ -304,7 +313,7 @@ class HGHFeedChecker {
                             duration: timeSplit.getAttribute('duration') || '',
                             remotePercentage: timeSplit.getAttribute('remotePercentage') || '',
                             remoteItem: (() => {
-                                const nestedRemote = timeSplit.querySelector('remoteItem');
+                                const nestedRemote = timeSplit.querySelector('podcast\\:remoteItem, remoteItem');
                                 return nestedRemote ? {
                                     feedGuid: nestedRemote.getAttribute('feedGuid') || '',
                                     itemGuid: nestedRemote.getAttribute('itemGuid') || ''
@@ -569,6 +578,13 @@ class HGHFeedChecker {
                 console.warn('Chapter timing issues:', timingErrors);
             }
 
+            // Validate chapter-to-V4V alignment
+            const episode = this.feedData?.episodes?.[episodeIndex];
+            const alignmentResult = this.validateChapterV4VAlignment(chaptersData, episode, episodeIndex);
+            if (alignmentResult.errors.length > 0 || alignmentResult.warnings.length > 0) {
+                console.warn('Chapter V4V alignment issues:', alignmentResult);
+            }
+
         } catch (error) {
             console.error('Error loading chapters:', error);
             this.displayChaptersError(episodeIndex);
@@ -758,7 +774,7 @@ class HGHFeedChecker {
 
             // Try to get episode info first
             try {
-                const episodeResponse = await fetch(`https://api.podcastindex.org/api/1.0/episodes/byguid?guid=${encodeURIComponent(itemGuid)}&feedguid=${encodeURIComponent(feedGuid)}`, { headers });
+                const episodeResponse = await fetch(`https://api.podcastindex.org/api/1.0/episodes/byguid?guid=${encodeURIComponent(itemGuid)}&podcastguid=${encodeURIComponent(feedGuid)}`, { headers });
                 if (episodeResponse.ok) {
                     const episodeData = await episodeResponse.json();
                     if (episodeData.episode) {
@@ -1478,6 +1494,22 @@ class HGHFeedChecker {
         }
     }
 
+    // Helper to compare two recipient arrays for equality (same addresses and splits)
+    recipientsAreEqual(recipients1, recipients2) {
+        if (!recipients1 || !recipients2) return false;
+        if (recipients1.length !== recipients2.length) return false;
+        if (recipients1.length === 0) return false;
+
+        const set1 = new Set(recipients1.map(r => `${r.address}:${r.split}`));
+        const set2 = new Set(recipients2.map(r => `${r.address}:${r.split}`));
+
+        if (set1.size !== set2.size) return false;
+        for (const item of set1) {
+            if (!set2.has(item)) return false;
+        }
+        return true;
+    }
+
     // Validate chapter timing - check for sequential timestamps and no overlaps
     validateChapterTiming(chaptersData, episodeIndex) {
         const errors = [];
@@ -1538,6 +1570,82 @@ class HGHFeedChecker {
         }
 
         return errors;
+    }
+
+    // Validate chapter-to-V4V alignment - check for self-referencing remoteItems
+    validateChapterV4VAlignment(chaptersData, episode, episodeIndex) {
+        const errors = [];
+        const warnings = [];
+
+        if (!episode?.value?.timeSplits) {
+            console.log('❌ No timeSplits for episode', episodeIndex);
+            return { errors, warnings };
+        }
+
+        const timeSplits = episode.value.timeSplits;
+        let showGuid = this.feedData?.channel?.guid;
+
+        // If showGuid is empty, it might not have been extracted - warn about this
+        if (!showGuid) {
+            console.warn('⚠️ Show GUID not found in channel - self-reference check will be skipped');
+        }
+        console.log('🔍 Validating episode', episodeIndex, 'showGuid:', showGuid);
+
+        // Check each V4V split with a remoteItem
+        const songSplits = timeSplits.filter(s => s.remoteItem);
+        console.log('🔍 Found', songSplits.length, 'song splits');
+
+        songSplits.forEach(split => {
+            const time = this.formatTime(parseFloat(split.startTime));
+            const remoteFeedGuid = split.remoteItem.feedGuid;
+            console.log('🔍 Checking split at', time, '- remoteFeedGuid:', remoteFeedGuid);
+
+            // Check if remoteItem points to the show's own feed (copy/paste error)
+            if (showGuid && remoteFeedGuid === showGuid) {
+                console.log('❌ MATCH FOUND! Self-reference at', time);
+                errors.push(`Song at ${time}: remoteItem references show's own feed (copy/paste error)`);
+            }
+        });
+
+        console.log('🔍 Validation complete. Errors:', errors.length, 'Warnings:', warnings.length);
+
+        // Inject errors into the episode card
+        if (errors.length > 0 || warnings.length > 0) {
+            const episodeCard = document.querySelector(`[data-episode="${episodeIndex}"]`);
+            if (episodeCard) {
+                episodeCard.classList.add('has-issues');
+
+                // Update or create error badge
+                let errorBadge = episodeCard.querySelector('.error-badge');
+                if (!errorBadge) {
+                    const badges = episodeCard.querySelector('.episode-badges');
+                    const expandBtn = badges.querySelector('.expand-btn');
+                    errorBadge = document.createElement('span');
+                    errorBadge.className = 'episode-badge error-badge';
+                    badges.insertBefore(errorBadge, expandBtn);
+                }
+                const currentCount = parseInt(errorBadge.textContent) || 0;
+                const newCount = currentCount + errors.length + warnings.length;
+                errorBadge.textContent = `${newCount} Issue${newCount > 1 ? 's' : ''}`;
+
+                // Add to episode-errors container or create one
+                let errorsContainer = episodeCard.querySelector('.episode-errors');
+                if (!errorsContainer) {
+                    errorsContainer = document.createElement('div');
+                    errorsContainer.className = 'episode-errors';
+                    const content = episodeCard.querySelector('.episode-content');
+                    content.insertBefore(errorsContainer, content.firstChild);
+                }
+                errors.forEach(err => {
+                    errorsContainer.innerHTML += `<div class="episode-error">❌ ${err}</div>`;
+                });
+                warnings.forEach(warn => {
+                    errorsContainer.innerHTML += `<div class="episode-warning">⚠️ ${warn}</div>`;
+                });
+            }
+        }
+
+        return { errors, warnings };
     }
 
     // Validate V4V for songs only (remote items)
