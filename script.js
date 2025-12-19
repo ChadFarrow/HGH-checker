@@ -810,9 +810,26 @@ class HGHFeedChecker {
                 console.log('Feed lookup failed:', e.message);
             }
 
+            // Get the chapter title to compare with song title
+            const chapterItem = container.closest('.chapter-item');
+            const chapterTitle = chapterItem?.querySelector('.chapter-title')?.textContent?.trim();
+            console.log('🔍 Title comparison:', { chapterTitle, songTitle, hasChapterItem: !!chapterItem });
+
+            // Check for title mismatch
+            let titleMismatch = false;
+            if (songTitle && chapterTitle && songTitle.toLowerCase() !== chapterTitle.toLowerCase()) {
+                titleMismatch = true;
+                console.warn(`⚠️ Title mismatch: Chapter "${chapterTitle}" vs Song "${songTitle}"`);
+            }
+
             // Build the artist info display
             if (songTitle || artistName || albumArt) {
                 infoContainer.innerHTML = `
+                    ${titleMismatch ? `
+                        <div class="title-mismatch-warning">
+                            ⚠️ Title mismatch: Chapter is "${chapterTitle}" but V4V points to "${songTitle}"
+                        </div>
+                    ` : ''}
                     <div class="artist-info">
                         ${albumArt ? `<img src="${albumArt}" alt="Album art" class="artist-artwork" />` : ''}
                         <div class="artist-details">
