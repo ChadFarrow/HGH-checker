@@ -216,22 +216,12 @@ class HGHFeedChecker {
         // Handle namespaced elements like podcast:chapters
         const el = element.querySelector(selector);
         if (!el) {
-            // Try alternative selectors for namespaced elements
-            const alternativeSelectors = [
-                selector.replace('podcast\\:', ''),
-                selector.replace('podcast\\:', 'podcast:'),
-            ];
-            
-            // Only add local-name selector if we have a namespace
+            // Try alternative selector without namespace prefix
+            // Note: unescaped colon (podcast:chapters) and local-name() are not valid CSS selectors
             if (selector.includes('\\:')) {
                 const localName = selector.split('\\:')[1];
-                alternativeSelectors.push(`*[local-name()="${localName}"]`);
-            }
-            
-            for (const altSelector of alternativeSelectors) {
-                const altEl = element.querySelector(altSelector);
+                const altEl = element.querySelector(localName);
                 if (altEl) {
-                    console.log('Found element with alternative selector:', altSelector);
                     return altEl.getAttribute(attribute);
                 }
             }
