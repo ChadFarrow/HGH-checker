@@ -18,6 +18,7 @@ The tool compares three timelines for each episode:
 | `CHAPTER_IS_OTHER_SONG` | fail | The chapter at the split is a different song in this episode (swapped or shifted) |
 | `SONG_CHAPTER_UNPAID` | fail | A chapter has a song title from this episode, but no split starts there |
 | `SONG_NOT_FOUND` | fail | The remoteItem feedGuid/itemGuid does not resolve to a song |
+| `NO_PI_KEYS` | fail | The server has no Podcast Index keys, so no song was checked (shown once) |
 | `NO_WALLET` / `BAD_ADDRESS` / `ZERO_SPLITS` | fail | Song or episode has no usable value recipients |
 | `SPLIT_OVERLAP` | warn / fail | One split runs more than 3 s into the next one (FAIL above 10 s) |
 | `SPLIT_TIMES`, `NO_REMOTE_ITEM` | fail | The split is missing data |
@@ -27,6 +28,7 @@ The tool compares three timelines for each episode:
 | `SPLIT_RUNS_LONG` | warn | The split still pays the song more than 5 s into the next chapter |
 | `CHAPTER_NO_ART`, `SONG_NO_ART` | warn | Missing artwork |
 | `NO_SPLITS` | warn | The episode pays no songs |
+| `BROKEN_TEXT` | warn | A chapter title has broken characters (UTF-8 saved as Windows-1252, like `âš¡` for ⚡) |
 | `CHAPTER_NO_SPLIT` | note | A chapter with a link has no split. It does not change the result. |
 
 Tolerances are in `lib/compare.js` (`DEFAULTS`).
