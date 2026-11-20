@@ -19,6 +19,7 @@ The tool compares three timelines for each episode:
 | `SONG_CHAPTER_UNPAID` | fail | A chapter has a song title from this episode, but no split starts there |
 | `SONG_NOT_FOUND` | fail | The remoteItem feedGuid/itemGuid does not resolve to a song |
 | `NO_PI_KEYS` | fail | The server has no Podcast Index keys, so no song was checked (shown once) |
+| `SONG_FEED_DOWN` | warn | The song's own feed does not load or is not RSS; the wallet comes from the Podcast Index copy |
 | `NO_WALLET` / `BAD_ADDRESS` / `ZERO_SPLITS` | fail | Song or episode has no usable value recipients |
 | `SPLIT_OVERLAP` | warn / fail | One split runs more than 3 s into the next one (FAIL above 10 s) |
 | `SPLIT_TIMES`, `NO_REMOTE_ITEM` | fail | The split is missing data |

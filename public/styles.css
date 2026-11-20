@@ -69,6 +69,8 @@ button.small { padding: 4px 12px; font-size: 0.85rem; }
 .title { font-weight: 600; margin-top: 4px; }
 
 .issues { list-style: none; margin: 16px 0 0; padding: 0; }
+.result { overflow-wrap: anywhere; } /* a long URL or token must not widen the page */
+.issues li > span { min-width: 0; }
 .issues li {
   display: flex;
   gap: 10px;

@@ -194,3 +194,22 @@ test('missing Podcast Index keys give one episode issue, not one per song', () =
   assert.equal(r.counts.fail, 1);
   assert.equal(r.status, 'fail');
 });
+
+test('findSongInFeed refuses a feed that is not RSS, with a clean message', () => {
+  // HGH 159, November Anthem: the libsyn feed now redirects to a JPEG.
+  const jpeg = 'ÿØÿà\u0000\u0010JFIF\u0000\u0001<H\u0000ÿ"<\u0001\u0002 readTag';
+  assert.throws(() => findSongInFeed(jpeg, 'i1'), (e) => e.code === 'NOT_RSS' && /^[\x20-\x7e]+$/.test(e.message));
+  assert.throws(() => findSongInFeed('<html><body>gone</body></html>', 'i1'), (e) => e.code === 'NOT_RSS');
+});
+
+test('warns when the song feed is down and the wallet comes from Podcast Index', () => {
+  const r = compareEpisode(
+    episode(),
+    chapters(),
+    songs({ 'f2|i2': { ...song('Coffee Fear Despair Beer', 207), feedProblem: 'does not return an RSS feed' } }),
+  );
+  const check = r.rows.find((x) => x.split?.feedGuid === 'f2').checks.find((k) => k.code === 'SONG_FEED_DOWN');
+  assert.ok(check);
+  assert.equal(check.level, 'warn');
+  assert.equal(r.status, 'warn');
+});

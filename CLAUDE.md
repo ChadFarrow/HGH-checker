@@ -4,8 +4,9 @@ A post-production check for music podcasts such as Homegrown Hits. Paste a feed 
 checks the newest episode and shows PASS, CHECK or FAIL. It lines up three timelines: the
 `podcast:chapters` file, the `podcast:valueTimeSplit` blocks, and the song each split's
 `remoteItem` points to (resolved through Podcast Index, then read from the song's own feed, which
-holds the wallet a player boosts). The rules and their codes are in `lib/compare.js` and in the
-README table.
+holds the wallet a player boosts; when that feed is down, the Podcast Index copy is used and the
+song gets `SONG_FEED_DOWN`). The rules and their codes are in `lib/compare.js` and in the README
+table.
 
 ## Layout
 
