@@ -94,7 +94,7 @@ button.small { padding: 4px 12px; font-size: 0.85rem; }
   flex: none;
 }
 details { margin-top: 14px; }
-summary { cursor: pointer; color: var(--muted); }
+summary { cursor: pointer; color: var(--muted); min-height: 24px; padding: 4px 0; } /* WCAG 2.5.8: 24 px targets */
 audio { width: 100%; margin: 10px 0; }
 
 .tablewrap { overflow-x: auto; }
@@ -106,6 +106,7 @@ tr.chapter td { opacity: 0.6; }
 tr.fail td { background: #ef4f5a14; }
 tr.warn td { background: #f2b53a10; }
 .wallet { font-size: 0.8rem; word-break: break-all; }
+.wallet a { display: inline-block; min-height: 24px; line-height: 24px; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--pass); }
 .dot.warn { background: var(--warn); }
 .dot.fail { background: var(--fail); }

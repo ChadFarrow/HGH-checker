@@ -54,3 +54,15 @@ test('resolveSong falls back to the Podcast Index copy when the song feed does n
   assert.equal(s.title, 'November Anthem');
   assert.match(s.feedProblem, /HTTP 404/);
 });
+
+test('the Podcast Index fallback uses the feed value and art when the episode has none', async () => {
+  // HGH 159, November Anthem: the wallet is on the channel, so the PI episode record has no value.
+  const feedValue = { model: { type: 'lightning', method: 'keysend' }, destinations: [{ name: 'Ariel Powell', type: 'node', address: NODE, split: 90 }] };
+  const piGet = async (p) =>
+    p.startsWith('podcasts/byguid')
+      ? { feed: { url: 'https://example.com/leaves.xml', value: feedValue, image: 'leaves.jpg' } }
+      : { episode: { title: 'November Anthem', feedTitle: 'The Leaves, Shimmering Gold', duration: 355, image: '', feedImage: '', value: null } };
+  const [, s] = await resolveSong({ feedGuid: 'f-chanvalue', itemGuid: 'i-chanvalue' }, { getText: async () => 'JFIF', piGet });
+  assert.equal(s.value?.recipients?.[0]?.address, NODE);
+  assert.equal(s.image, 'leaves.jpg');
+});
