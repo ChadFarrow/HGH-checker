@@ -154,3 +154,43 @@ test('finds a song in its own feed; item value overrides channel value', () => {
   assert.equal(s.valueSource, 'item');
   assert.equal(s.value.recipients[0].address, 'band@getalby.com');
 });
+
+test('warns when a chapter title has broken characters (UTF-8 read as Windows-1252)', () => {
+  // HGH 159 at 3:17: the chapters file holds "HGH 159 âš¡ï¸Ž 11-19-26" instead of "HGH 159 ⚡︎ 11-19-26".
+  const c = parseChapters({
+    chapters: CHAPTERS.chapters.map((x) => (x.startTime === 197.544 ? { ...x, title: 'HGH 159 âš¡ï¸Ž 11-19-26' } : x)),
+  });
+  const r = compareEpisode(episode(), c, songs());
+  const row = r.rows.find((x) => x.time === 197.544);
+  const check = row.checks.find((k) => k.code === 'BROKEN_TEXT');
+  assert.ok(check, JSON.stringify(row.checks));
+  assert.equal(check.level, 'warn');
+  assert.equal(r.status, 'warn');
+});
+
+test('warns on broken characters in a song chapter title too', () => {
+  const c = parseChapters({
+    chapters: CHAPTERS.chapters.map((x) => (x.startTime === 30.042 ? { ...x, title: 'Up The Hill Over Yonder There â€“ Live' } : x)),
+  });
+  const r = compareEpisode(episode(), c, songs());
+  assert.ok(r.rows.find((x) => x.time === 30.042).checks.some((k) => k.code === 'BROKEN_TEXT'));
+});
+
+test('does not flag real accents, emoji, or a non-breaking space', () => {
+  for (const title of ['Café Tacvba', 'Beyoncé', 'São Paulo', 'Mötley Crüe', 'Björk – Jóga', 'HGH 159 ⚡︎ 11-19-26', 'Café Tacvba', 'Ça plane pour moi']) {
+    const c = parseChapters({
+      chapters: CHAPTERS.chapters.map((x) => (x.startTime === 197.544 ? { ...x, title } : x)),
+    });
+    const r = compareEpisode(episode(), c, songs());
+    assert.ok(!r.rows.some((x) => x.checks.some((k) => k.code === 'BROKEN_TEXT')), title);
+  }
+});
+
+test('missing Podcast Index keys give one episode issue, not one per song', () => {
+  const noKeys = { error: 'Server has no Podcast Index API keys.', code: 'NO_KEYS' };
+  const r = compareEpisode(episode(), chapters(), songs({ 'f1|i1': noKeys, 'f2|i2': noKeys, 'f3|i3': noKeys }));
+  assert.deepEqual(r.issues.map((k) => k.code), ['NO_PI_KEYS']);
+  assert.ok(!r.rows.some((x) => x.checks.some((k) => k.code === 'SONG_NOT_FOUND')));
+  assert.equal(r.counts.fail, 1);
+  assert.equal(r.status, 'fail');
+});
