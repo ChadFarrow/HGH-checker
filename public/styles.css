@@ -1,0 +1,121 @@
+:root {
+  --bg: #140d1b;
+  --panel: #1f1729;
+  --line: #34284a;
+  --text: #ece6f5;
+  --muted: #a397b8;
+  --accent: #0c96ad;
+  --pass: #2fbf71;
+  --warn: #f2b53a;
+  --fail: #ef4f5a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+header h1 { margin: 0; font-size: 1.6rem; }
+.sub { margin: 4px 0 20px; color: var(--muted); }
+h2 { font-size: 1rem; color: var(--muted); margin: 32px 0 8px; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.small { font-size: 0.85rem; }
+.error { color: var(--fail); }
+
+form { display: flex; gap: 8px; }
+input[type='url'] {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+button {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.small { padding: 4px 12px; font-size: 0.85rem; }
+
+.result {
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 2px solid var(--line);
+}
+.result.pass { border-color: var(--pass); }
+.result.warn { border-color: var(--warn); }
+.result.fail { border-color: var(--fail); }
+.verdict { display: flex; gap: 16px; align-items: center; }
+.cover { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; flex: none; }
+.status { font-size: 2.2rem; font-weight: 800; letter-spacing: 0.04em; line-height: 1; }
+.pass .status { color: var(--pass); }
+.warn .status { color: var(--warn); }
+.fail .status { color: var(--fail); }
+.loading .status { color: var(--muted); }
+.title { font-weight: 600; margin-top: 4px; }
+
+.issues { list-style: none; margin: 16px 0 0; padding: 0; }
+.result { overflow-wrap: anywhere; } /* a long URL or token must not widen the page */
+.issues li > span { min-width: 0; }
+.issues li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 10px;
+  border-left: 4px solid var(--line);
+  background: #00000022;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.issues li.fail { border-left-color: var(--fail); }
+.issues li.warn { border-left-color: var(--warn); }
+.issues li.info { border-left-color: var(--muted); }
+.time {
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  flex: none;
+}
+details { margin-top: 14px; }
+summary { cursor: pointer; color: var(--muted); min-height: 24px; padding: 4px 0; } /* WCAG 2.5.8: 24 px targets */
+audio { width: 100%; margin: 10px 0; }
+
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th { text-align: left; color: var(--muted); font-weight: 500; }
+td, th { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td img { width: 36px; height: 36px; border-radius: 4px; object-fit: cover; }
+tr.chapter td { opacity: 0.6; }
+tr.fail td { background: #ef4f5a14; }
+tr.warn td { background: #f2b53a10; }
+.wallet { font-size: 0.8rem; word-break: break-all; }
+.wallet a { display: inline-block; min-height: 24px; line-height: 24px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--pass); }
+.dot.warn { background: var(--warn); }
+.dot.fail { background: var(--fail); }
+tr.chapter .dot { background: var(--line); }
+tr.chapter .dot.fail { background: var(--fail); }
+
+#list { list-style: none; padding: 0; margin: 0; }
+#list li { border-bottom: 1px solid var(--line); padding: 8px 0; }
+#list .row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+#list .result { margin-top: 10px; }
+#list .status { font-size: 1.4rem; }
+#list .cover { width: 48px; height: 48px; }

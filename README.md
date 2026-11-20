@@ -1,103 +1,72 @@
 # HGH Feed Checker
 
-A desktop web tool for music podcasters to validate their RSS feeds before publishing. Check chapters, V4V (Value4Value) payment info, and Podcasting 2.0 compliance.
+A quick sanity check for music shows like Homegrown Hits. Paste the feed URL. The page checks the newest episode and shows **PASS**, **CHECK**, or **FAIL**. If something is wrong, it tells you what and where, with a timestamp you can click to hear it.
 
-## Live Demo
+It does the hand check for you: play the show, skip with chapters, and confirm that the song changes when the chapter changes and that the boost goes to the right wallet.
 
-Deployed on Vercel: [hgh-checker.vercel.app](https://hgh-checker.vercel.app) (or your deployment URL)
+## What it checks
 
-## Features
+The tool compares three timelines for each episode:
 
-### Feed Validation
-- **Paste any RSS feed URL** - Works with any podcast feed
-- **Inline error display** - Errors shown directly in episode cards
-- **Chapter validation** - Checks timestamps are sequential with no overlaps
-- **V4V validation** - Validates Lightning payment splits and addresses
+1. **Chapters** — the `podcast:chapters` JSON file.
+2. **Value time splits** — `podcast:valueTimeSplit` in the episode `podcast:value` block.
+3. **Songs** — each split's `podcast:remoteItem`, looked up in Podcast Index and then read from the song's own feed (the same wallet a player uses for a boost).
 
-### Episode Cards
-- Collapsible cards showing episode title, date, duration
-- Badges for Chapters, Songs count, and Issues
-- Red border highlights episodes with problems
-- Expandable details with chapters and V4V info
+| Code | Level | Meaning |
+|---|---|---|
+| `NO_CHAPTER_AT_SPLIT` | fail | A split starts, but no chapter starts within 3 s |
+| `CHAPTER_IS_OTHER_SONG` | fail | The chapter at the split is a different song in this episode (swapped or shifted) |
+| `SONG_CHAPTER_UNPAID` | fail | A chapter has a song title from this episode, but no split starts there |
+| `SONG_NOT_FOUND` | fail | The remoteItem feedGuid/itemGuid does not resolve to a song |
+| `NO_PI_KEYS` | fail | The server has no Podcast Index keys, so no song was checked (shown once) |
+| `SONG_FEED_DOWN` | warn | The song's own feed does not load or is not RSS; the wallet comes from the Podcast Index copy |
+| `NO_WALLET` / `BAD_ADDRESS` / `ZERO_SPLITS` | fail | Song or episode has no usable value recipients |
+| `SPLIT_OVERLAP` | warn / fail | One split runs more than 3 s into the next one (FAIL above 10 s) |
+| `SPLIT_TIMES`, `NO_REMOTE_ITEM` | fail | The split is missing data |
+| `NO_CHAPTERS_TAG`, `CHAPTERS_UNREADABLE`, `NO_ENCLOSURE` | fail | Episode is missing a basic part |
+| `TITLE_MISMATCH` | warn | Chapter title and song title are different |
+| `DURATION_MISMATCH` | warn | Split duration and song length differ by more than 5 s |
+| `SPLIT_RUNS_LONG` | warn | The split still pays the song more than 5 s into the next chapter |
+| `CHAPTER_NO_ART`, `SONG_NO_ART` | warn | Missing artwork |
+| `NO_SPLITS` | warn | The episode pays no songs |
+| `BROKEN_TEXT` | warn | A chapter title has broken characters (UTF-8 saved as Windows-1252, like `âš¡` for ⚡) |
+| `CHAPTER_NO_SPLIT` | note | A chapter with a link has no split. It does not change the result. |
 
-### Expandable Chapters
-- Click any chapter to expand details
-- Shows chapter artwork, links, and V4V payment breakdown
-- Fetches artist info (song title, artist name, album art) from Podcast Index API
-- Displays payment splits for both Song Artist (99%) and Show (1%)
+Tolerances are in `lib/compare.js` (`DEFAULTS`).
 
-### V4V Payment Info
-- Lightning node addresses link to [amboss.space](https://amboss.space) for lookup
-- Shows payment split percentages and actual totals
-- Validates feed/item GUIDs for remote items (songs)
+## Setup
 
-### Validation Checks
+The server needs a Podcast Index API key pair (free at <https://api.podcastindex.org>). Set these in Vercel (Project → Settings → Environment Variables) or in your shell for local runs:
 
-| Check | What it validates |
-|-------|-------------------|
-| **Chapters** | File exists, timestamps sequential, no overlaps |
-| **V4V Splits** | Feed GUID, item GUID, valid percentages |
-| **Episode** | GUID present, audio enclosure exists |
-| **Lightning** | Address format, splits total 100% |
+```
+PODCASTINDEX_API_KEY=...
+PODCASTINDEX_API_SECRET=...
+```
 
-## How to Use
+The keys stay on the server. The browser never sees them.
 
-1. Go to the deployed URL or run locally
-2. Paste an RSS feed URL (defaults to Homegrown Hits feed)
-3. Click **Check Feed**
-4. Review episodes - expand any with the red "Issues" badge
-5. Click chapters to see artwork and V4V payment details
-
-## Local Development
+## Run locally
 
 ```bash
-# Start the CORS proxy server
-npm start
-
-# Open index.html in browser or use a local server
-python3 -m http.server 3000
+npm install
+npm test                      # unit tests (no network)
+npm run dev                   # http://localhost:3000
+node cli.js https://feed.homegrownhits.xyz/feed.xml   # one episode, exit code 1 on FAIL
 ```
 
-The proxy runs on port 3001 and handles CORS for fetching external feeds.
-
-## Deployment
-
-Configured for Vercel deployment:
-- Static files served from root
-- Serverless CORS proxy at `/api/proxy`
-- No build step required
-
-```bash
-# Deploy to Vercel
-vercel
-```
-
-## File Structure
+## Files
 
 ```
-HGH-checker/
-├── index.html          # Main UI
-├── script.js           # Feed parsing, validation, display logic
-├── styles.css          # Dark glassmorphism theme
-├── api/
-│   └── proxy.js        # Vercel serverless CORS proxy
-├── proxy-server.js     # Local development CORS proxy
-├── vercel.json         # Vercel deployment config
-├── package.json        # Project metadata
-└── README.md           # This file
+lib/parse.js     feed, chapters, and song feed parsing
+lib/compare.js   the timeline comparison (pure functions, all the rules)
+lib/net.js       fetch, Podcast Index lookup, song resolution
+lib/check.js     glue: load a feed, check one episode
+api/feed.js      GET /api/feed?url=          -> episode list
+api/episode.js   GET /api/episode?url=&guid= -> full check of one episode
+public/          the page (index.html, app.js, styles.css)
+cli.js           command-line check
+dev-server.js    local server that runs public/ and api/
 ```
-
-## Technical Details
-
-- **Desktop-only** - Optimized for wide screens (1400px max-width)
-- **No npm dependencies** - Pure HTML/CSS/JS frontend
-- **Podcast Index API** - Fetches artist info and artwork
-- **CORS proxy** - Serverless function for cross-origin feed fetching
-
-## Error Severity
-
-- **Errors** (red) - Critical issues like missing GUIDs
-- **Warnings** (yellow) - Non-critical like missing chapters
 
 ## License
 

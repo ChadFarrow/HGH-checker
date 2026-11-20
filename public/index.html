@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HGH Feed Checker</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>" />
+</head>
+<body>
+  <main>
+    <header>
+      <h1>HGH Feed Checker</h1>
+      <p class="sub">Do the chapters, songs, and wallets line up?</p>
+    </header>
+
+    <form id="form">
+      <input id="url" type="url" required placeholder="Paste RSS feed URL" value="https://feed.homegrownhits.xyz/feed.xml" />
+      <button type="submit">Check</button>
+    </form>
+
+    <section id="latest" hidden></section>
+
+    <section id="older" hidden>
+      <h2>Older episodes</h2>
+      <ul id="list"></ul>
+    </section>
+
+    <p id="error" class="error" hidden></p>
+  </main>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
