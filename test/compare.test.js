@@ -118,11 +118,14 @@ test('warns when split duration and song length differ', () => {
   assert.equal(r.status, 'warn');
 });
 
-test('fails on overlapping splits', () => {
+test('short split overlap is CHECK, long overlap is FAIL', () => {
   const ep = episode();
+  ep.splits[1].duration = 213; // runs 6.1 s into song 3 (like HGH 159 at 1:32:47)
+  let r = compareEpisode(ep, chapters(), songs({ 'f2|i2': song('Coffee Fear Despair Beer', 213) }));
+  assert.equal(r.rows.find((x) => x.split?.feedGuid === 'f2').checks.find((k) => k.code === 'SPLIT_OVERLAP').level, 'warn');
   ep.splits[0].duration = 400;
-  const r = compareEpisode(ep, chapters(), songs());
-  assert.ok(r.rows.some((x) => x.checks.some((k) => k.code === 'SPLIT_OVERLAP')));
+  r = compareEpisode(ep, chapters(), songs());
+  assert.equal(r.rows[1].checks.find((k) => k.code === 'SPLIT_OVERLAP').level, 'fail');
 });
 
 test('fails on a bad node address in the episode wallet', () => {
