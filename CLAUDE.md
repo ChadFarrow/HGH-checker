@@ -13,6 +13,9 @@ table.
 - `lib/parse.js` — feed, chapters and song-feed parsing (no network).
 - `lib/compare.js` — every rule, as pure functions. Tolerances are in `DEFAULTS`.
 - `lib/net.js` — fetch, Podcast Index auth, song resolution, a small in-memory cache.
+- `lib/safe-fetch.js` — the SSRF guard that `fetchText` uses for every fetch (a port of the
+  PC20-Nostr recipe `safe-feed-fetch`): public addresses only, DNS answers and each redirect
+  checked, one 15 s limit, a byte cap (16 MB feed, 8 MB chapters and song feeds).
 - `lib/check.js` — glue used by `api/` and `cli.js`.
 - `api/feed.js`, `api/episode.js` — Vercel functions. `public/` — the static page.
 - `dev-server.js` — local server that serves `public/` and runs `api/*.js` like Vercel.
@@ -46,5 +49,7 @@ and the issue list). Test the phone layout with CDP device emulation (see `globa
 
 - Never put a key or a secret in client code or in a commit. The old `script.js` did, so the
   pair in this repo's history is public and was replaced on 2026-11-20.
-- The server fetches any feed URL a visitor gives it. Keep it read-only: no proxy endpoint
-  that returns arbitrary content.
+- The server fetches any feed URL a visitor gives it, and the chapters and song-feed URLs
+  that the feed names. Keep it read-only: no proxy endpoint that returns arbitrary content.
+- Every server fetch goes through `fetchText` in `lib/net.js`. Do not call `fetch()` directly.
+  `test/fetch-guard.test.js` and `test/safe-fetch.test.js` hold the attack cases.
