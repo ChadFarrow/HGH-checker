@@ -40,7 +40,7 @@ The server fetches the feed URL you paste, and the chapters and song-feed URLs t
 
 - Only public `http://` and `https://` addresses. It refuses `localhost`, `*.local`, `*.internal`, private, loopback, link-local and cloud-metadata addresses (IPv4 and IPv6, in every spelling), and a name whose DNS answer includes any of them. A name that does not resolve is refused too.
 - Redirects: at most 5, and each target is checked again.
-- Time: 15 s for one fetch, redirects and body included.
+- Time: 15 s for one fetch: DNS checks, redirects and body included.
 - Size: 16 MB for the feed you paste, 8 MB for a chapters file or a song feed.
 
 Two limits remain: DNS rebinding (a DNS server that answers the check and the connection differently), and any port on a public host is allowed.

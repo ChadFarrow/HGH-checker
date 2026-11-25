@@ -131,6 +131,18 @@ test('the refusal message is the same for a private name and an unresolvable one
   assert.equal((await msg('https://a.example/')).replace('a.example', 'X'), (await msg('https://b.example/')).replace('b.example', 'X'));
 });
 
+test('a DNS lookup that never answers hits the time limit, with no request', async () => {
+  const calls = [];
+  const fetch = async (u) => (calls.push(u), new Response('leak'));
+  const t = Date.now();
+  await assert.rejects(
+    fetchText('https://slow-dns.example/feed.xml', { timeout: 300, deps: { fetch, lookup: () => new Promise(() => {}) } }),
+    (e) => e.code === 'TIMEOUT',
+  );
+  assert.ok(Date.now() - t < 2000);
+  assert.deepEqual(calls, []);
+});
+
 // --- 3. a real HTTP server, reached as if it were the public host 93.184.215.14 ---
 
 let server;
