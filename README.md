@@ -34,6 +34,17 @@ The tool compares three timelines for each episode:
 
 Tolerances are in `lib/compare.js` (`DEFAULTS`).
 
+## What the server fetches
+
+The server fetches the feed URL you paste, and the chapters and song-feed URLs that the feed names. Every fetch goes through `lib/safe-fetch.js`:
+
+- Only public `http://` and `https://` addresses. It refuses `localhost`, `*.local`, `*.internal`, private, loopback, link-local and cloud-metadata addresses (IPv4 and IPv6, in every spelling), and a name whose DNS answer includes any of them. A name that does not resolve is refused too.
+- Redirects: at most 5, and each target is checked again.
+- Time: 15 s for one fetch, redirects and body included.
+- Size: 16 MB for the feed you paste, 8 MB for a chapters file or a song feed.
+
+Two limits remain: DNS rebinding (a DNS server that answers the check and the connection differently), and any port on a public host is allowed.
+
 ## Setup
 
 The server needs a Podcast Index API key pair (free at <https://api.podcastindex.org>). Set these in Vercel (Project → Settings → Environment Variables) or in your shell for local runs:
@@ -60,6 +71,7 @@ node cli.js https://feed.homegrownhits.xyz/feed.xml   # one episode, exit code 1
 lib/parse.js     feed, chapters, and song feed parsing
 lib/compare.js   the timeline comparison (pure functions, all the rules)
 lib/net.js       fetch, Podcast Index lookup, song resolution
+lib/safe-fetch.js  guard on every server fetch: public addresses only, time and size limits
 lib/check.js     glue: load a feed, check one episode
 api/feed.js      GET /api/feed?url=          -> episode list
 api/episode.js   GET /api/episode?url=&guid= -> full check of one episode
