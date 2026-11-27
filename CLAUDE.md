@@ -16,6 +16,9 @@ table.
 - `lib/safe-fetch.js` — the SSRF guard that `fetchText` uses for every fetch (a port of the
   PC20-Nostr recipe `safe-feed-fetch`): public addresses only, DNS answers and each redirect
   checked, one 15 s limit, a byte cap (16 MB feed, 8 MB chapters and song feeds).
+- `lib/user-agent.js` — `USER_AGENT`, the one name every server fetch sends:
+  `HGH-Checker/<package.json version> (+https://hgh-checker.vercel.app)`. No email, no browser
+  name. Until 2026-11-27 it was a hand-written `HGH-Checker/2.0 (+<GitHub URL>)`.
 - `lib/check.js` — glue used by `api/` and `cli.js`.
 - `api/feed.js`, `api/episode.js` — Vercel functions. `public/` — the static page.
 - `dev-server.js` — local server that serves `public/` and runs `api/*.js` like Vercel.
